@@ -14,7 +14,7 @@ import { load, recordRun, save } from './storage';
 import { STR } from './strings';
 import { azulejoDataUri, cursorDataUri } from './render/art';
 import { Board } from './render/board';
-import { Fx, pulseClass, reducedMotion } from './render/fx';
+import { Fx, reducedMotion } from './render/fx';
 import { Hud } from './render/hud';
 import { Overlay } from './render/overlay';
 
@@ -23,8 +23,8 @@ const rootStyle = document.documentElement.style;
 rootStyle.setProperty('--azulejo', azulejoDataUri());
 rootStyle.setProperty('--castanet-cursor', cursorDataUri());
 
-const hud = new Hud(app);
 const board = new Board(app);
+const hud = new Hud(board);
 const fx = new Fx(board.fxLayer, board.arena);
 const overlay = new Overlay(board.overlay);
 const g = createGame();
@@ -42,18 +42,19 @@ hud.colourToggle.addEventListener('click', () => {
   applyPatternsOnly(saved.patternsOnly);
 });
 
-function syncHud(shifted = false): void {
+function syncHud(): void {
   hud.setScore(g.score);
   hud.setStage(g.stage);
   hud.setLives(g.lives);
-  hud.setRule(g.stage.mode, target(g));
-  hud.setQueue(g.queue, g.stage.mode, shifted);
+  hud.setTarget(g.stage.mode, g.queue, false);
   hud.setFan(g.streak);
   hud.setProgress(g.progress, g.stage.goal);
 }
 
-function cheer(big: boolean): void {
-  pulseClass(board.stands, big ? 'cheer-big' : 'cheer', big ? 900 : 600);
+/** Olé meter: when the streak passes a third, one stand jumps up and cheers. */
+function updateMeter(prevStreak: number): void {
+  const side = hud.setFan(g.streak, prevStreak);
+  if (side) hud.cheer(side);
 }
 
 function prepareStage(): void {
@@ -66,6 +67,8 @@ function play(viaKeyboard = false): void {
   overlay.hide();
   beginStage(g);
   last = performance.now();
+  // The rule flashes in the centre circle as play starts.
+  hud.flashRule(g.stage.mode, target(g));
   // Keyboard players get focus on the grid; pointer players don't see a focus ring.
   if (viaKeyboard) board.focusGrid();
   else (document.activeElement as HTMLElement | null)?.blur();
@@ -99,7 +102,7 @@ function onStageClear(): void {
   hud.setFan(g.streak);
   fx.callout(STR.stageClear, 'clear');
   fx.celebrate();
-  cheer(true);
+  hud.cheerAll();
   window.setTimeout(
     () => {
       nextStage(g);
@@ -142,23 +145,12 @@ function handle(events: GameEvent[]): void {
         board.bonk(ev.critter.hole, false);
         fx.points(board.holePoint(ev.critter.hole), `+${ev.points}`);
         hud.setScore(g.score);
-        hud.setFan(ev.streak);
+        updateMeter(ev.streak - 1);
         hud.setProgress(g.progress, g.stage.goal);
         if (ev.ole) {
           fx.callout(STR.callouts[ev.ole], ev.ole);
-          if (ev.ole === 'ole') cheer(false);
-          if (ev.ole === 'oleOle') {
-            cheer(true);
-            pulseClass(board.stands, 'flutter', 1600);
-          }
-          if (ev.ole === 'oleMax') {
-            cheer(true);
-            if (!reducedMotion()) fx.sparkle();
-          }
-          if (ev.ole === 'torero') {
-            cheer(true);
-            fx.roseLand();
-          }
+          if (ev.ole === 'oleMax' && !reducedMotion()) fx.sparkle();
+          if (ev.ole === 'torero') fx.roseLand();
         }
         break;
       }
@@ -178,8 +170,7 @@ function handle(events: GameEvent[]): void {
         board.clear(ev.critter.hole, ev.critter.id);
         break;
       case 'queue':
-        hud.setQueue(g.queue, g.stage.mode, true);
-        hud.setRule(g.stage.mode, target(g));
+        hud.setTarget(g.stage.mode, g.queue, true);
         break;
       case 'lives':
         hud.setLives(ev.lives);

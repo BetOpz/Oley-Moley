@@ -285,58 +285,130 @@ export function sparkleSvg(): string {
   return `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${starPath(10, 10, 9, 2.2, 4)}" fill="#ffe27a" stroke="${PALETTE.gold}" stroke-width="1"/></svg>`;
 }
 
-// ---------------------------------------------------------------- stands
+// ---------------------------------------------------------------- stadium
 
-/** Sky, crowd silhouettes and bunting above the arena. Deterministic. */
-export function standsSvg(): string {
-  let seed = 7;
+export type Side = 'top' | 'right' | 'bottom' | 'left';
+
+/**
+ * One stand of the stadium: tiers of seats parallel to the pitch edge, with an upright
+ * crowd. About a fifth of the fans hold a scarf or a flag filled with `var(--tgt)`, so
+ * the whole crowd switches to the current target colour from CSS. Deterministic.
+ */
+export function crowdSvg(side: Side): string {
+  const horizontal = side === 'top' || side === 'bottom';
+  const W = horizontal ? 1000 : 340;
+  const H = horizontal ? 240 : 700;
+  const tierGap = 34;
+  const along = 27;
+  const tiers = Math.floor((horizontal ? H : W) / tierGap);
+  let seed = side.length * 97 + (side === 'left' ? 5 : 0);
   const rnd = () => {
     seed = (seed * 16807) % 2147483647;
     return seed / 2147483647;
   };
-  const tones = ['#8b3a2b', '#6d2f3b', '#a1543a', '#5a3a4a', '#7a4630', '#94402f'];
-  const people: string[] = [];
-  for (const [row, y, size] of [
-    [0, 50, 9],
-    [1, 60, 10.5],
-  ] as const) {
-    for (let x = row ? 6 : 0; x < 410; x += size * 2.15) {
+  const tones = ['#8b3a2b', '#6d2f3b', '#a1543a', '#5a3a4a', '#7a4630', '#94402f', '#4d3b5c', '#9a6a3a'];
+  const seatA = '#e6c79a';
+  const seatB = '#d8b483';
+  const rows: string[] = [];
+  // Tier 0 is the front row, next to the pitch.
+  for (let t = 0; t < tiers; t++) {
+    const depth = t * tierGap;
+    const people: string[] = [];
+    const count = Math.ceil((horizontal ? W : H) / along) + 1;
+    for (let i = 0; i < count; i++) {
+      const a = i * along + (t % 2 ? along / 2 : 0) + (rnd() - 0.5) * 6;
+      // Convert (along, depth) into screen coordinates for this side.
+      let x: number;
+      let y: number;
+      if (side === 'top') {
+        x = a;
+        y = H - depth - 6;
+      } else if (side === 'bottom') {
+        x = a;
+        y = depth + tierGap - 4;
+      } else if (side === 'left') {
+        x = W - depth - tierGap / 2;
+        y = a;
+      } else {
+        x = depth + tierGap / 2;
+        y = a;
+      }
+      const s = 10 + rnd() * 2;
       const tone = tones[Math.floor(rnd() * tones.length)];
-      const dy = rnd() * 3;
-      const delay = (rnd() * 0.4).toFixed(2);
-      const fan = rnd() < 0.12;
-      people.push(`<g class="person" style="animation-delay:${delay}s">
-        <path d="M${x - size},${y + size * 2.2 + dy} Q${x - size},${y + size * 0.6 + dy} ${x},${y + size * 0.6 + dy} Q${x + size},${y + size * 0.6 + dy} ${x + size},${y + size * 2.2 + dy}Z" fill="${tone}"/>
-        <circle cx="${x}" cy="${y - size * 0.15 + dy}" r="${size * 0.62}" fill="${tone}"/>
-        ${fan ? `<path d="M${x + size * 0.6},${y + dy} l${size * 0.9},-${size * 1.2} a${size * 0.9},${size * 0.9} 0 0 1 ${size * 0.6},${size * 1.1}Z" fill="${row ? '#e8b22c' : '#d8262c'}"/>` : ''}
-      </g>`);
+      const r = rnd();
+      let held = '';
+      if (r < 0.13) {
+        // Scarf held above the head with both hands.
+        held = `<g class="tgt-item"><rect x="${x - s * 1.6}" y="${y - s * 2.75}" width="${s * 3.2}" height="${s * 0.75}" rx="1" class="tgt" stroke="${INK}" stroke-width="1"/>
+          <rect x="${x - s * 1.6}" y="${y - s * 2.75}" width="${s * 0.55}" height="${s * 0.75}" fill="${CREAM}" opacity=".85"/>
+          <rect x="${x + s * 1.05}" y="${y - s * 2.75}" width="${s * 0.55}" height="${s * 0.75}" fill="${CREAM}" opacity=".85"/></g>`;
+      } else if (r < 0.21) {
+        // Flag on a stick.
+        held = `<g class="tgt-item"><line x1="${x + s * 0.8}" y1="${y - s * 0.4}" x2="${x + s * 0.8}" y2="${y - s * 3.4}" stroke="${INK}" stroke-width="1.4"/>
+          <path class="tgt flag" d="M${x + s * 0.8},${y - s * 3.4} h${s * 1.9} l-${s * 0.45},${s * 0.6} l${s * 0.45},${s * 0.6} h-${s * 1.9}Z" stroke="${INK}" stroke-width="1"/></g>`;
+      }
+      people.push(`<path d="M${x - s},${y} Q${x - s},${y - s * 1.6} ${x},${y - s * 1.6} Q${x + s},${y - s * 1.6} ${x + s},${y}Z" fill="${tone}"/>
+        <circle cx="${x}" cy="${y - s * 2.2}" r="${s * 0.62}" fill="${tone}"/>${held}`);
     }
+    // Seat stripe for this tier.
+    let stripe: string;
+    if (side === 'top') stripe = `<rect x="0" y="${H - depth - tierGap}" width="${W}" height="${tierGap}" fill="${t % 2 ? seatA : seatB}"/>`;
+    else if (side === 'bottom') stripe = `<rect x="0" y="${depth}" width="${W}" height="${tierGap}" fill="${t % 2 ? seatA : seatB}"/>`;
+    else if (side === 'left') stripe = `<rect x="${W - depth - tierGap}" y="0" width="${tierGap}" height="${H}" fill="${t % 2 ? seatA : seatB}"/>`;
+    else stripe = `<rect x="${depth}" y="0" width="${tierGap}" height="${H}" fill="${t % 2 ? seatA : seatB}"/>`;
+    rows.push(`${stripe}<g class="tier" style="animation-delay:${(t * 0.035).toFixed(3)}s">${people.join('')}</g>`);
   }
-  const flags: string[] = [];
-  const flagCols = ['#d8262c', '#f5c518', '#fff6e6', '#2a67d1', '#2e9e4f'];
-  for (const [y0, sag, off] of [
-    [6, 14, 0],
-    [16, 12, 11],
-  ] as const) {
-    for (let i = 0; i < 20; i++) {
-      const x = off + i * 22;
-      const t = (x % 200) / 200;
-      const y = y0 + sag * 4 * t * (1 - t);
-      const col = flagCols[(i + (off ? 2 : 0)) % flagCols.length];
-      flags.push(`<path class="flag" style="animation-delay:${(i * 0.07).toFixed(2)}s" d="M${x - 6},${y} L${x + 6},${y} L${x},${y + 12}Z" fill="${col}" stroke="${INK}" stroke-width=".8"/>`);
-    }
-  }
-  const string = (y0: number, sag: number) =>
-    `<path d="M0,${y0} Q100,${y0 + sag * 2} 200,${y0} Q300,${y0 + sag * 2} 400,${y0}" fill="none" stroke="${INK}" stroke-width="1"/>`;
-  return `<svg class="stands-svg" viewBox="0 0 400 86" preserveAspectRatio="xMidYMin slice" aria-hidden="true">
-    <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3ea2e8"/><stop offset="1" stop-color="#9fd6f7"/></linearGradient></defs>
-    <rect width="400" height="86" fill="url(#sky)"/>
-    <circle cx="352" cy="22" r="11" fill="#fff3b0" opacity=".9"/>
-    <rect y="56" width="400" height="30" fill="#e6c79a"/>
-    <g class="crowd">${people.join('')}</g>
-    ${string(6, 7)}${string(16, 6)}
-    <g class="bunting">${flags.join('')}</g>
+  // Paint top-of-screen rows first so lower rows overlap them.
+  if (side === 'top') rows.reverse();
+  const anchor = { top: 'xMidYMax', bottom: 'xMidYMin', left: 'xMaxYMid', right: 'xMinYMid' }[side];
+  return `<svg class="crowd-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="${anchor} slice" aria-hidden="true">
+    <rect width="${W}" height="${H}" fill="#c9a574"/>
+    ${rows.join('')}
   </svg>`;
+}
+
+/** Repeating band pattern for an advertising board, one per hat colour. */
+function boardPattern(color: HatColor, fg: string): string {
+  switch (color) {
+    case 'red': // stripes
+      return `<pattern id="p" width="9" height="9" patternUnits="userSpaceOnUse"><rect x="0" width="3.6" height="9" fill="${fg}"/></pattern>`;
+    case 'blue': // dots
+      return `<pattern id="p" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="4.5" cy="4.5" r="2.1" fill="${fg}"/></pattern>`;
+    case 'yellow': // stars
+      return `<pattern id="p" width="14" height="14" patternUnits="userSpaceOnUse"><path d="${starPath(7, 7, 5, 2.1)}" fill="${fg}"/></pattern>`;
+    case 'purple': // zigzag
+      return `<pattern id="p" width="12" height="8" patternUnits="userSpaceOnUse"><polyline points="0,6 3,2 6,6 9,2 12,6" fill="none" stroke="${fg}" stroke-width="1.8" stroke-linejoin="round"/></pattern>`;
+  }
+}
+
+/**
+ * One advertising panel as a data-URI background: the target colour, its band pattern,
+ * and the target itself (hat, or animal in hat) on a cream badge. Boards repeat it.
+ */
+export function boardPanelUri(item: ItemType, mode: Mode, vertical: boolean): string {
+  const w = vertical ? 40 : 76;
+  const h = vertical ? 64 : 40;
+  const plain = mode === 'plain' || item.color === 'none';
+  const fill = plain ? PALETTE.deepRed : PALETTE.hats[item.color as HatColor];
+  const fg = !plain && item.color === 'yellow' ? INK : CREAM;
+  const pattern = plain ? '' : boardPattern(item.color as HatColor, fg);
+  const b = 32; // badge size
+  const bx = (w - b) / 2;
+  const by = (h - b) / 2;
+  const icon =
+    mode === 'hat' && !plain
+      ? `<g transform="translate(${bx} ${by}) scale(${b / 60})">${hatSvg(item.color, 30, 42, 1.05)}</g>`
+      : `<svg x="${bx + 1}" y="${by + 1}" width="${b - 2}" height="${b - 2}" viewBox="4 6 92 94" preserveAspectRatio="xMidYMax slice">${critterInner(item).replace(/<g class="eyes-daze">[\s\S]*?<\/g>/, '')}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <defs>${pattern}</defs>
+    <rect width="${w}" height="${h}" fill="${fill}"/>
+    ${pattern ? `<rect width="${w}" height="${h}" fill="url(#p)" opacity=".6"/>` : `<path d="${starPath(8, h / 2, 4, 1.6)} ${starPath(w - 8, h / 2, 4, 1.6)}" fill="${PALETTE.gold}"/>`}
+    <rect x="${bx}" y="${by}" width="${b}" height="${b}" rx="6" fill="${CREAM}" stroke="${INK}" stroke-width="1.6"/>
+    ${icon}
+    <rect x="${bx}" y="${by}" width="${b}" height="${b}" rx="6" fill="none" stroke="${INK}" stroke-width="1.6"/>
+    ${vertical ? `<rect x="0" y="${h - 1}" width="${w}" height="1" fill="${INK}" opacity=".35"/>` : `<rect x="${w - 1}" y="0" width="1" height="${h}" fill="${INK}" opacity=".35"/>`}
+  </svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 
 /** Azulejo strip as a CSS background (data URI), for panel borders. */

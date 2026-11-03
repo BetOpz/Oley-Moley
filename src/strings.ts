@@ -19,6 +19,7 @@ export const STR = {
   introGo: '¡Vamos!',
   gridSize: (n: number) => `${n} × ${n}`,
   nowLabel: 'AHORA',
+  nextLabel: 'Luego',
 
   stageClear: '¡Bravo!',
 
