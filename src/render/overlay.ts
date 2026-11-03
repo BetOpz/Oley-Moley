@@ -1,22 +1,18 @@
-// Overlay cards inside the board: start poster, stage intro, game over.
+// Overlay cards over the pitch, inside the hoardings: matchday ticket, stage intro, full time.
 import type { Stage } from '../game';
 import { STR } from '../strings';
 import { el } from './board';
 import { critterSvg } from './art';
 
-export interface GameOverInfo {
+export interface FullTimeInfo {
   score: number;
   stage: number;
   bestScore: number;
-  bestStreak: number;
   newBest: boolean;
 }
 
-export function stageTitle(stage: Stage): { title: string; sub: string; rule: string } {
-  if (stage.encore > 0) {
-    const last = STR.stages[STR.stages.length - 1];
-    return { title: STR.encoreTitle(stage.encore), sub: STR.encoreSub, rule: last.rule };
-  }
+export function stageTitle(stage: Stage): { title: string; rule: string } {
+  if (stage.encore > 0) return { title: STR.extraTimeTitle(stage.encore), rule: STR.extraTimeRule };
   return STR.stages[stage.index];
 }
 
@@ -42,61 +38,60 @@ export class Overlay {
     window.setTimeout(() => button.focus({ preventScroll: true }), 30);
   }
 
-  poster(best: number, onPlay: (viaKeyboard: boolean) => void): void {
-    const card = el('div', 'card poster');
-    const art = el('div', 'poster-art');
+  /** Start screen: a matchday ticket. The Play button is the tear-off stub. */
+  ticket(best: number, onPlay: (viaKeyboard: boolean) => void): void {
+    const card = el('div', 'ticket');
+    const main = el('div', 'ticket-main');
+    const kicker = el('div', 'ticket-kicker');
+    kicker.textContent = STR.ticketKicker;
+    const title = el('div', 'ticket-title');
+    title.textContent = STR.gameTitle;
+    const art = el('div', 'ticket-art');
     art.innerHTML = [
       critterSvg({ animal: 'rabbit', color: 'blue' }),
       critterSvg({ animal: 'mole', color: 'red' }),
-      critterSvg({ animal: 'bull', color: 'yellow' }),
+      critterSvg({ animal: 'fox', color: 'yellow' }),
     ]
-      .map((s) => `<div class="poster-critter">${s}</div>`)
+      .map((s) => `<div class="ticket-critter">${s}</div>`)
       .join('');
-    card.innerHTML = `
-      <div class="poster-kicker">${STR.posterKicker}</div>
-      <div class="poster-title">${STR.gameTitle}</div>`;
-    card.append(art);
-    const plaza = el('div', 'poster-plaza');
-    plaza.textContent = STR.posterPlaza;
-    const date = el('div', 'poster-date');
-    date.textContent = STR.posterDate(new Date());
-    const btn = el('button', 'ticket');
-    btn.type = 'button';
-    btn.innerHTML = `<span class="ticket-main">${STR.posterPlay}</span><span class="ticket-sub">${STR.posterTicketSub}</span>`;
-    card.append(plaza, date, btn);
+    const fixture = el('div', 'ticket-fixture');
+    fixture.textContent = STR.ticketFixture;
+    const seat = el('div', 'ticket-seat');
+    seat.textContent = STR.ticketGround;
+    main.append(kicker, title, art, fixture, seat);
     if (best > 0) {
-      const b = el('div', 'poster-best');
-      b.textContent = STR.posterBest(best);
-      card.append(b);
+      const b = el('div', 'ticket-best');
+      b.textContent = STR.ticketBest(best);
+      main.append(b);
     }
-    this.show(card, btn, onPlay);
+    const stub = el('button', 'ticket-stub');
+    stub.type = 'button';
+    stub.innerHTML = `<span class="stub-main">${STR.ticketPlay}</span><span class="stub-sub">${STR.ticketStubSub}</span>`;
+    card.append(main, stub);
+    this.show(card, stub, onPlay);
   }
 
   intro(stage: Stage, onGo: (viaKeyboard: boolean) => void): void {
     const t = stageTitle(stage);
     const card = el('div', 'card intro');
-    const num = el('div', 'intro-num');
+    const num = el('div', 'card-kicker');
     num.textContent = STR.introStageLine(stage.number, stage.grid);
-    const h = el('h2', 'intro-title');
+    const h = el('h2', 'card-title');
     h.textContent = t.title;
-    const sub = el('p', 'intro-sub');
-    sub.textContent = t.sub;
-    const rule = el('p', 'intro-rule');
+    const rule = el('p', 'card-rule');
     rule.textContent = t.rule;
     const btn = el('button', 'btn');
     btn.type = 'button';
     btn.textContent = STR.introGo;
-    card.append(num, h, sub, rule, btn);
+    card.append(num, h, rule, btn);
     this.show(card, btn, onGo);
   }
 
-  gameOver(info: GameOverInfo, onAgain: (viaKeyboard: boolean) => void): void {
-    const card = el('div', 'card gameover');
-    const h = el('h2', 'go-title');
-    h.textContent = STR.gameOverTitle;
-    const sub = el('p', 'go-sub');
-    sub.textContent = STR.gameOverSub;
-    const dl = el('dl', 'go-stats');
+  fullTime(info: FullTimeInfo, onAgain: (viaKeyboard: boolean) => void): void {
+    const card = el('div', 'card fulltime');
+    const h = el('h2', 'card-title');
+    h.textContent = STR.fullTimeTitle;
+    const dl = el('dl', 'ft-stats');
     const row = (k: string, v: string | number) => {
       const dt = el('dt');
       dt.textContent = k;
@@ -104,14 +99,13 @@ export class Overlay {
       dd.textContent = String(v);
       dl.append(dt, dd);
     };
-    row(STR.gameOverScore, info.score);
-    row(STR.gameOverStage, info.stage);
-    row(STR.gameOverBest, info.bestScore);
-    row(STR.gameOverBestStreak, info.bestStreak);
-    card.append(h, sub);
+    row(STR.fullTimeScore, info.score);
+    row(STR.fullTimeStage, info.stage);
+    row(STR.fullTimeBest, info.bestScore);
+    card.append(h);
     if (info.newBest) {
-      const nb = el('div', 'go-newbest');
-      nb.textContent = STR.gameOverNewBest;
+      const nb = el('div', 'ft-newbest');
+      nb.textContent = STR.fullTimeNewBest;
       card.append(nb);
     }
     const btn = el('button', 'btn');

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ENCORE, STAGES, STREAK, TUNING } from '../src/config';
+import { ENCORE, STAGES, TUNING } from '../src/config';
 import type { ItemType, Mode } from '../src/config';
 import {
   beginStage,
@@ -7,6 +7,7 @@ import {
   getStage,
   nextStage,
   oleFor,
+  oleThresholds,
   pointsFor,
   shiftQueue,
   startRun,
@@ -210,34 +211,54 @@ describe('scoring and streak', () => {
   });
 });
 
-describe('Olé callouts', () => {
-  it('fire at 3, 5, 10 and every 5 from 15', () => {
-    const hits: Record<number, string | null> = {};
-    for (let s = 1; s <= 30; s++) hits[s] = oleFor(s);
-    expect(hits[3]).toBe('ole');
-    expect(hits[5]).toBe('oleOle');
-    expect(hits[10]).toBe('oleMax');
-    expect(hits[15]).toBe('torero');
-    expect(hits[20]).toBe('torero');
-    expect(hits[25]).toBe('torero');
-    for (const s of [1, 2, 4, 6, 9, 11, 14, 16, 19, 21]) expect(hits[s]).toBeNull();
+describe('Olé meter', () => {
+  it('thresholds are ceil(goal/3), ceil(2·goal/3) and goal', () => {
+    expect(oleThresholds(8)).toEqual([3, 6, 8]);
+    expect(oleThresholds(9)).toEqual([3, 6, 9]);
+    expect(oleThresholds(12)).toEqual([4, 8, 12]);
+    expect(oleThresholds(15)).toEqual([5, 10, 15]);
+    expect([2, 3, 4, 6, 9].map((p) => oleFor(p, 9))).toEqual([null, 1, null, 2, 3]);
   });
 
-  it('come through on hit events and reset after a mistake', () => {
-    const g = newGame(1, 3);
-    const oles: (string | null)[] = [];
-    for (let i = 0; i < 5; i++) {
-      place(g, 0, { animal: 'mole', color: 'none' });
-      const ev = whack(g, 0).find((e) => e.type === 'hit');
-      if (ev && ev.type === 'hit') oles.push(ev.ole);
-      g.critters = [];
-    }
-    expect(oles).toEqual([null, null, 'ole', null, 'oleOle']);
-    // An escape resets the streak.
-    place(g, 0, { animal: 'mole', color: 'none' }, 10);
+  for (const stage of [0, 1, 2, 3, 4, 5, 6]) {
+    it(`stage ${stage + 1}: each cheer fires exactly once, in order`, () => {
+      const g = newGame(stage, 5);
+      const goal = g.stage.goal;
+      const oles: number[] = [];
+      for (let i = 0; i < goal; i++) {
+        place(g, 0, { ...target(g) });
+        const ev = whack(g, 0).find((e) => e.type === 'hit');
+        if (ev && ev.type === 'hit' && ev.ole) oles.push(ev.ole);
+        g.critters = [];
+      }
+      expect(oles).toEqual([1, 2, 3]);
+      expect(g.phase).toBe('clear');
+    });
+  }
+
+  it('progress never goes backwards on mistakes or escapes', () => {
+    const g = newGame(2, 9);
+    place(g, 0, { ...target(g) });
+    whack(g, 0);
+    g.critters = [];
+    expect(g.progress).toBe(1);
+    const tgt = target(g);
+    place(g, 1, { animal: 'mole', color: tgt.color === 'red' ? 'blue' : 'red' });
+    whack(g, 1);
+    expect(g.progress).toBe(1);
+    place(g, 2, { ...target(g) }, 10);
     tick(g, 20);
-    expect(g.streak).toBe(0);
-    expect(STREAK.ole).toBe(3);
+    expect(g.progress).toBe(1);
+    expect(g.lives).toBe(TUNING.startLives - 2);
+  });
+
+  it('streaks still earn bonus points but no longer trigger cheers', () => {
+    const g = newGame(5, 2);
+    g.streak = 9;
+    place(g, 0, { ...target(g) });
+    const ev = whack(g, 0).find((e) => e.type === 'hit');
+    expect(ev && ev.type === 'hit' && ev.ole).toBeNull();
+    expect(ev && ev.type === 'hit' && ev.points).toBe(pointsFor(6, 10));
   });
 });
 

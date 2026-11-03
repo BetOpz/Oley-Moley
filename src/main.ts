@@ -1,34 +1,31 @@
-// Bootstraps the game and wires the pure game state to the DOM renderers.
+// Bootstraps the game and wires the pure game state to the DOM renderers and sound.
 import './style.css';
-import {
-  beginStage,
-  createGame,
-  nextStage,
-  startRun,
-  target,
-  tick,
-  whack,
-} from './game';
+import { beginStage, createGame, nextStage, startRun, target, tick, whack } from './game';
 import type { GameEvent } from './game';
+import { AudioManager } from './audio';
 import { load, recordRun, save } from './storage';
 import { STR } from './strings';
-import { azulejoDataUri, cursorDataUri } from './render/art';
 import { Board } from './render/board';
 import { Fx, reducedMotion } from './render/fx';
 import { Hud } from './render/hud';
 import { Overlay } from './render/overlay';
+import { Stadium } from './render/stadium';
 
 const app = document.getElementById('app')!;
-const rootStyle = document.documentElement.style;
-rootStyle.setProperty('--azulejo', azulejoDataUri());
-rootStyle.setProperty('--castanet-cursor', cursorDataUri());
-
-const board = new Board(app);
-const hud = new Hud(board);
-const fx = new Fx(board.fxLayer, board.arena);
+const stadium = new Stadium(app);
+const board = new Board(stadium.pitchHost);
+stadium.mountRuleLabel();
+const hud = new Hud(stadium.stands.top);
+const fx = new Fx(board.fxLayer, stadium.frame);
 const overlay = new Overlay(board.overlay);
 const g = createGame();
 let saved = load();
+const audio = new AudioManager(saved.muted);
+
+// Sound starts only after the first tap or key press.
+const unlock = () => audio.unlock();
+window.addEventListener('pointerdown', unlock, { capture: true });
+window.addEventListener('keydown', unlock, { capture: true });
 
 function applyPatternsOnly(on: boolean): void {
   document.documentElement.classList.toggle('patterns-only', on);
@@ -42,19 +39,21 @@ hud.colourToggle.addEventListener('click', () => {
   applyPatternsOnly(saved.patternsOnly);
 });
 
+hud.setMuted(saved.muted);
+hud.muteToggle.addEventListener('click', () => {
+  saved = load();
+  saved.muted = !saved.muted;
+  save(saved);
+  audio.setMuted(saved.muted);
+  hud.setMuted(saved.muted);
+});
+
 function syncHud(): void {
-  hud.setScore(g.score);
+  hud.setScore(g.score, g.streak);
   hud.setStage(g.stage);
   hud.setLives(g.lives);
-  hud.setTarget(g.stage.mode, g.queue, false);
-  hud.setFan(g.streak);
   hud.setProgress(g.progress, g.stage.goal);
-}
-
-/** Olé meter: when the streak passes a third, one stand jumps up and cheers. */
-function updateMeter(prevStreak: number): void {
-  const side = hud.setFan(g.streak, prevStreak);
-  if (side) hud.cheer(side);
+  stadium.setTarget(g.stage.mode, g.queue, false);
 }
 
 function prepareStage(): void {
@@ -67,8 +66,7 @@ function play(viaKeyboard = false): void {
   overlay.hide();
   beginStage(g);
   last = performance.now();
-  // The rule flashes in the centre circle as play starts.
-  hud.flashRule(g.stage.mode, target(g));
+  stadium.flashRule(g.stage.mode, target(g));
   // Keyboard players get focus on the grid; pointer players don't see a focus ring.
   if (viaKeyboard) board.focusGrid();
   else (document.activeElement as HTMLElement | null)?.blur();
@@ -89,9 +87,9 @@ function startIndexFromUrl(): number {
   }
 }
 
-function showPoster(): void {
+function showTicket(): void {
   prepareStage();
-  overlay.poster(saved.bestScore, () => {
+  overlay.ticket(saved.bestScore, () => {
     startRun(g, startIndexFromUrl());
     showIntro();
   });
@@ -99,32 +97,24 @@ function showPoster(): void {
 
 function onStageClear(): void {
   board.clearAll();
-  hud.setFan(g.streak);
-  fx.callout(STR.stageClear, 'clear');
-  fx.celebrate();
-  hud.cheerAll();
+  fx.confetti();
   window.setTimeout(
     () => {
       nextStage(g);
       showIntro();
     },
-    reducedMotion() ? 1200 : 2200,
+    reducedMotion() ? 1400 : 2600,
   );
 }
 
 function onGameOver(): void {
   board.clearAll();
+  audio.play('fulltime');
   const { saved: s, newBest } = recordRun(g.score, g.bestStreak);
   saved = s;
   window.setTimeout(() => {
-    overlay.gameOver(
-      {
-        score: g.score,
-        stage: g.stage.number,
-        bestScore: s.bestScore,
-        bestStreak: s.bestStreak,
-        newBest,
-      },
+    overlay.fullTime(
+      { score: g.score, stage: g.stage.number, bestScore: s.bestScore, newBest },
       (viaKeyboard) => {
         // Play again starts immediately at stage 1.
         startRun(g);
@@ -141,27 +131,29 @@ function handle(events: GameEvent[]): void {
       case 'spawn':
         board.spawn(ev.critter.hole, ev.critter.id, ev.critter.item);
         break;
-      case 'hit': {
+      case 'hit':
         board.bonk(ev.critter.hole, false);
         fx.points(board.holePoint(ev.critter.hole), `+${ev.points}`);
-        hud.setScore(g.score);
-        updateMeter(ev.streak - 1);
+        hud.setScore(g.score, g.streak);
         hud.setProgress(g.progress, g.stage.goal);
         if (ev.ole) {
-          fx.callout(STR.callouts[ev.ole], ev.ole);
-          if (ev.ole === 'oleMax' && !reducedMotion()) fx.sparkle();
-          if (ev.ole === 'torero') fx.roseLand();
+          fx.pop(STR.cheers[ev.ole - 1], `cheer${ev.ole}`);
+          stadium.cheer(ev.ole);
+          audio.play(`ole-${ev.ole}`);
+        } else {
+          audio.hit();
         }
         break;
-      }
       case 'wrong':
         board.bonk(ev.critter.hole, true);
-        fx.callout(ev.kind === 'animal' ? STR.callouts.wrongAnimal : STR.callouts.wrongHat, 'oops');
+        fx.pop(ev.kind === 'animal' ? STR.messages.wrongAnimal : STR.messages.wrongHat, 'oops');
         fx.shake();
+        audio.play('groan');
         break;
       case 'escape':
-        fx.callout(STR.callouts.escape, 'oops');
+        fx.pop(STR.messages.escape, 'oops');
         fx.shake();
+        audio.play('whistle');
         break;
       case 'sink':
         board.sink(ev.critter.hole, ev.critter.id);
@@ -170,11 +162,11 @@ function handle(events: GameEvent[]): void {
         board.clear(ev.critter.hole, ev.critter.id);
         break;
       case 'queue':
-        hud.setTarget(g.stage.mode, g.queue, true);
+        stadium.setTarget(g.stage.mode, g.queue, true);
         break;
       case 'lives':
         hud.setLives(ev.lives);
-        hud.setFan(g.streak);
+        hud.setScore(g.score, g.streak);
         break;
       case 'stageClear':
         onStageClear();
@@ -188,9 +180,8 @@ function handle(events: GameEvent[]): void {
   }
 }
 
-board.onWhack((hole, at) => {
+board.onWhack((hole) => {
   if (g.phase !== 'playing') return;
-  if (at) fx.castanet(at);
   handle(whack(g, hole));
 });
 
@@ -202,5 +193,5 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
 }
 
-showPoster();
+showTicket();
 requestAnimationFrame(frame);

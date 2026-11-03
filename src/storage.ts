@@ -1,4 +1,4 @@
-// Best score / best streak / settings in localStorage. Every access is guarded:
+// Best score / best streak / settings (colour mode, mute) in localStorage. Every access is guarded:
 // storage can be missing or throw (private windows, blocked site data).
 
 const KEY = 'ole-mole:v1';
@@ -7,9 +7,10 @@ export interface Saved {
   bestScore: number;
   bestStreak: number;
   patternsOnly: boolean;
+  muted: boolean;
 }
 
-const DEFAULTS: Saved = { bestScore: 0, bestStreak: 0, patternsOnly: false };
+const DEFAULTS: Saved = { bestScore: 0, bestStreak: 0, patternsOnly: false, muted: false };
 
 export function load(): Saved {
   try {
@@ -20,6 +21,7 @@ export function load(): Saved {
       bestScore: Number(data.bestScore) || 0,
       bestStreak: Number(data.bestStreak) || 0,
       patternsOnly: Boolean(data.patternsOnly),
+      muted: Boolean(data.muted),
     };
   } catch {
     return { ...DEFAULTS };

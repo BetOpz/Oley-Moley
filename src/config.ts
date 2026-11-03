@@ -1,6 +1,6 @@
 // Tuning, stage table, colours and animals. No DOM in here.
 
-export type Animal = 'mole' | 'rabbit' | 'frog' | 'bull';
+export type Animal = 'mole' | 'rabbit' | 'frog' | 'fox';
 export type HatColor = 'red' | 'blue' | 'yellow' | 'purple';
 export type Color = HatColor | 'none';
 export type Mode = 'plain' | 'hat' | 'animal';
@@ -25,12 +25,12 @@ export interface StageDef {
 
 /** Order matters: stages take the first N of each list. */
 export const HAT_COLORS: HatColor[] = ['red', 'blue', 'yellow', 'purple'];
-export const ANIMALS: Animal[] = ['mole', 'rabbit', 'frog', 'bull'];
+export const ANIMALS: Animal[] = ['mole', 'rabbit', 'frog', 'fox'];
 
 export const STAGES: StageDef[] = [
-  { grid: 2, mode: 'plain', colors: 0, animals: 1, goal: 8, spawnMs: 950, upMs: 1500, maxUp: 1 },
-  { grid: 3, mode: 'plain', colors: 0, animals: 1, goal: 10, spawnMs: 780, upMs: 1250, maxUp: 2 },
-  { grid: 3, mode: 'hat', colors: 3, animals: 1, goal: 10, spawnMs: 720, upMs: 1600, maxUp: 3 },
+  { grid: 2, mode: 'plain', colors: 0, animals: 1, goal: 9, spawnMs: 950, upMs: 1500, maxUp: 1 },
+  { grid: 3, mode: 'plain', colors: 0, animals: 1, goal: 9, spawnMs: 780, upMs: 1250, maxUp: 2 },
+  { grid: 3, mode: 'hat', colors: 3, animals: 1, goal: 12, spawnMs: 720, upMs: 1600, maxUp: 3 },
   { grid: 4, mode: 'hat', colors: 4, animals: 1, goal: 12, spawnMs: 620, upMs: 1450, maxUp: 4 },
   { grid: 4, mode: 'animal', colors: 3, animals: 3, goal: 12, spawnMs: 640, upMs: 1600, maxUp: 5 },
   { grid: 5, mode: 'animal', colors: 4, animals: 4, goal: 15, spawnMs: 540, upMs: 1400, maxUp: 6 },
@@ -72,39 +72,30 @@ export const DECOY_RATIOS = {
   wrongAnimalAnyColor: 0.2,
 };
 
-/** Streak values that trigger Olé callouts. */
-export const STREAK = {
-  ole: 3,
-  oleOle: 5,
-  oleMax: 10,
-  toreroFrom: 15,
-  toreroEvery: 5,
-  /** Number of fan segments in the Olé meter (full at oleMax). */
-  fanSegments: 10,
-};
+/** The Olé meter: stage progress split into three equal sections. */
+export const OLE_SECTIONS = 3;
 
 /** Colours used by the art. Hat colours are picked to differ in brightness too. */
 export const PALETTE = {
   hats: {
-    red: '#d8262c',
-    blue: '#2a67d1',
-    yellow: '#f5c518',
-    purple: '#6b2a96',
+    red: '#d62b36',
+    blue: '#2f6fd6',
+    yellow: '#f4c430',
+    purple: '#7b3fa8',
     none: '#888888',
   } as Record<Color, string>,
   hatsDark: {
-    red: '#8e1418',
-    blue: '#173f86',
-    yellow: '#b08300',
-    purple: '#3f145c',
+    red: '#8f141d',
+    blue: '#18408a',
+    yellow: '#a87f00',
+    purple: '#47206a',
     none: '#555555',
   } as Record<Color, string>,
-  ink: '#2b1a12',
-  sand: '#e9c27a',
-  sandDark: '#c99a4c',
-  terracotta: '#c8553d',
-  deepRed: '#9e1b1f',
-  gold: '#e8b22c',
-  warmWhite: '#fff6e6',
-  sky: '#5fb6f0',
+  ink: '#1c2230',
+  white: '#ffffff',
+  chalk: '#f4f7f2',
+  turf: '#3f9b4a',
+  turfDark: '#358a40',
+  dusk: '#26345a',
+  stand: '#3a4258',
 };

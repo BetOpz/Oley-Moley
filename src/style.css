@@ -1,49 +1,23 @@
+/* Olé Molé! matchday stadium. Light-only, by design: it's a floodlit ground at dusk. */
+
 :root {
-  --ink: #2b1a12;
-  --sand: #e9c27a;
-  --sand-light: #f3d697;
-  --sand-dark: #c99a4c;
-  --terracotta: #c8553d;
-  --deep-red: #9e1b1f;
-  --red: #d8262c;
-  --gold: #e8b22c;
-  --gold-light: #ffd968;
-  --cream: #fff6e6;
-  --sky: #5fb6f0;
-  --page: #c9a574;
-  --display: 'Alfa Slab One', 'Rockwell', 'Roboto Slab', 'Georgia', serif;
+  --ink: #1c2230;
+  --white: #ffffff;
+  --dusk: #26345a;
+  --dusk-deep: #141b30;
+  --stand: #3a4258;
+  --led: #0d1220;
+  --amber: #ffc93c;
+  --amber-dim: #6b5520;
+  --turf: #3f9b4a;
+  --turf-dark: #368a41;
+  --turf-lip: #5cb865;
+  --chalk: rgba(255, 255, 255, 0.42);
+  --soil: #2b1d12;
+  --red: #d62b36;
+  --display: 'Anton', 'Impact', 'Haettenschweiler', 'Arial Narrow Bold', sans-serif;
   --body: 'Nunito', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
-  /* Target colour, set from JS. The crowd's scarves and flags use it. */
-  --tgt: var(--gold);
-  --tgt-dark: var(--deep-red);
-
-  /* Stadium geometry. The pitch is the largest square that fits between the stands. */
-  --vh: 100vh;
-  --side-min: clamp(10px, 3.2vw, 56px);
-  --top-min: 116px;
-  --bottom-min: clamp(18px, 4vh, 48px);
-  --pitch: min(
-    calc(100vw - 2 * var(--side-min)),
-    calc(var(--vh) - var(--top-min) - var(--bottom-min)),
-    900px
-  );
-  /* Advertising board thickness. */
-  --bt: clamp(20px, calc(var(--pitch) * 0.075), 46px);
   color-scheme: light;
-}
-
-@supports (height: 100dvh) {
-  :root {
-    --vh: 100dvh;
-  }
-}
-
-/* Phones: the side stands shrink to thin strips so the pitch stays as wide as possible. */
-@media (max-width: 600px) {
-  :root {
-    --side-min: 8px;
-    --top-min: 104px;
-  }
 }
 
 * {
@@ -51,28 +25,30 @@
 }
 
 html,
-body {
-  margin: 0;
+body,
+#app {
   height: 100%;
+  margin: 0;
+}
+
+html,
+body {
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
-  background: var(--page);
+  background: var(--dusk-deep);
   color: var(--ink);
   font-family: var(--body);
   font-weight: 600;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior: none;
 }
 
 #app {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  grid-template-columns: minmax(var(--side-min), 1fr) var(--pitch) minmax(var(--side-min), 1fr);
-  grid-template-rows: minmax(var(--top-min), 1fr) var(--pitch) minmax(var(--bottom-min), 1fr);
+  position: relative;
+  container-type: size;
   overflow: hidden;
 }
 
@@ -81,13 +57,32 @@ button {
   color: inherit;
 }
 
-.sr-only {
+/* ------------------------------------------------------------ stadium grid */
+
+.stadium {
+  /* The pitch is the largest square that fits between the stands, capped at 600px. */
+  --side: clamp(10px, 4cqw, 60px);
+  --top: 108px;
+  --bottom: clamp(18px, 4cqh, 40px);
+  --pitch: min(calc(100cqw - 2 * var(--side)), calc(100cqh - var(--top) - var(--bottom)), 600px);
+  /* Hoarding thickness: the top one is thicker because it carries the queue. */
+  --bt: clamp(14px, calc(var(--pitch) * 0.045), 26px);
+  --btt: clamp(30px, calc(var(--pitch) * 0.085), 50px);
+  --card: 84px;
+
   position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(var(--side), 1fr) var(--pitch) minmax(var(--side), 1fr);
+  grid-template-rows: minmax(var(--top), 1fr) var(--pitch) minmax(var(--bottom), 1fr);
+}
+
+/* Phones: the side stands shrink to a few pixels of crowd colour. */
+@container (max-width: 600px) {
+  .stadium {
+    --side: 6px;
+    --card: 66px;
+  }
 }
 
 /* ------------------------------------------------------------ stands */
@@ -97,6 +92,7 @@ button {
   overflow: hidden;
   min-width: 0;
   min-height: 0;
+  background: var(--stand);
 }
 
 .stand-top {
@@ -119,7 +115,56 @@ button {
   grid-row: 2;
 }
 
-/* Shade the stands slightly towards the back so the pitch stays the brightest thing. */
+.crowd {
+  position: absolute;
+  inset: -6px;
+  filter: saturate(0.85) brightness(0.92);
+}
+
+.crowd-layer {
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+  background-size: var(--card) var(--card);
+  animation-fill-mode: both;
+  animation-timing-function: ease-out;
+}
+
+/* Anchor the card display to the pitch edge so it lines up with the hoardings. */
+.stand-top .crowd-layer {
+  background-position: center bottom;
+}
+
+.stand-bottom .crowd-layer {
+  background-position: center top;
+}
+
+.stand-left .crowd-layer {
+  background-position: right center;
+}
+
+.stand-right .crowd-layer {
+  background-position: left center;
+}
+
+/* The crowd ripples outwards from the pitch. */
+.stand-top .crowd-layer.wipe {
+  animation-name: reveal-up;
+}
+
+.stand-bottom .crowd-layer.wipe {
+  animation-name: reveal-down;
+}
+
+.stand-left .crowd-layer.wipe {
+  animation-name: reveal-left;
+}
+
+.stand-right .crowd-layer.wipe {
+  animation-name: reveal-right;
+}
+
+/* Fade the stands into the dusk away from the pitch, so the pitch edge reads strongest. */
 .stand::after {
   content: '';
   position: absolute;
@@ -128,75 +173,62 @@ button {
 }
 
 .stand-top::after {
-  background: linear-gradient(0deg, transparent 30%, rgba(43, 26, 18, 0.28));
+  background: linear-gradient(to top, rgba(20, 27, 48, 0.1), rgba(20, 27, 48, 0.72));
 }
 
 .stand-bottom::after {
-  background: linear-gradient(180deg, transparent 30%, rgba(43, 26, 18, 0.28));
+  background: linear-gradient(to bottom, rgba(20, 27, 48, 0.1), rgba(20, 27, 48, 0.72));
 }
 
 .stand-left::after {
-  background: linear-gradient(270deg, transparent 30%, rgba(43, 26, 18, 0.28));
+  background: linear-gradient(to left, rgba(20, 27, 48, 0.1), rgba(20, 27, 48, 0.78));
 }
 
 .stand-right::after {
-  background: linear-gradient(90deg, transparent 30%, rgba(43, 26, 18, 0.28));
+  background: linear-gradient(to right, rgba(20, 27, 48, 0.1), rgba(20, 27, 48, 0.78));
 }
 
-.crowd-svg {
+/* Dusk sky and floodlight glow over the back of the top stand. */
+.stand-top::before {
+  content: '';
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 46%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 22% 90% at 8% 0, rgba(255, 246, 214, 0.55), transparent 70%),
+    radial-gradient(ellipse 22% 90% at 92% 0, rgba(255, 246, 214, 0.55), transparent 70%),
+    linear-gradient(to bottom, #1d2a52, rgba(29, 42, 82, 0));
 }
 
-.tgt {
-  fill: var(--tgt);
-  transition: fill 0.3s;
+.stand.cheer .crowd {
+  animation: jump 0.26s ease-in-out 4;
 }
 
-.tier {
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
+.stand.cheer-all .crowd {
+  animation: jump 0.26s ease-in-out 7;
 }
 
-.stand.cheer .tier {
-  animation: stand-hop 0.3s ease-in-out 3;
+.stand.cheer-all .crowd-layer {
+  animation: wave 0.16s ease-in-out 12 alternate;
 }
 
-.stand.cheer-big .tier {
-  animation: stand-hop-big 0.3s ease-in-out 5;
-}
-
-.stand.cheer .tgt-item,
-.stand.cheer-big .tgt-item {
-  animation: wave 0.15s ease-in-out 8 alternate;
-}
-
-.tgt-item {
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
-}
-
-@keyframes stand-hop {
+@keyframes jump {
   50% {
-    transform: translateY(-9px);
-  }
-}
-
-@keyframes stand-hop-big {
-  50% {
-    transform: translateY(-12px) scale(1.02);
+    transform: translateY(-5px) scale(1.015);
+    filter: brightness(1.35);
   }
 }
 
 @keyframes wave {
   from {
-    transform: rotate(-9deg) translateY(-3px);
+    transform: translateX(-3px) skewX(-3deg);
   }
   to {
-    transform: rotate(9deg) translateY(-6px);
+    transform: translateX(3px) skewX(3deg);
   }
 }
 
@@ -208,24 +240,24 @@ button {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(calc(100% - 16px), 560px);
-  padding: 5px 10px 7px;
-  background: linear-gradient(180deg, #3a2a20, #24170f);
-  border: 3px solid var(--ink);
-  outline: 2px solid var(--gold);
-  outline-offset: -6px;
-  border-radius: 10px;
-  box-shadow: 0 4px 0 rgba(43, 26, 18, 0.6);
-  color: var(--cream);
+  width: min(calc(100% - 12px), 460px);
+  padding: 6px 10px 8px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
+  background: var(--led);
+  border: 2px solid #2d3756;
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 3px rgba(0, 0, 0, 0.35),
+    0 8px 18px rgba(0, 0, 0, 0.4);
+  color: var(--white);
 }
 
 .sb-head {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
@@ -233,303 +265,348 @@ button {
   margin: 0;
   font-family: var(--display);
   font-weight: 400;
-  font-size: clamp(15px, 4vw, 22px);
+  font-size: 19px;
   line-height: 1;
-  color: var(--red);
-  text-shadow: 1px 1px 0 var(--gold);
+  letter-spacing: 0.02em;
+  color: var(--white);
 }
 
-.colour-toggle {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 2px solid var(--gold);
+.sb-tools {
+  display: flex;
+  gap: 6px;
+}
+
+.sb-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1.5px solid #46527a;
   background: transparent;
-  color: var(--cream);
-  font-size: 14px;
+  color: #c5cfea;
+  font-size: 15px;
   line-height: 1;
   cursor: pointer;
-  padding: 0;
 }
 
-.colour-toggle[aria-pressed='true'] {
-  background: var(--cream);
-  color: var(--ink);
+.sb-btn svg {
+  width: 17px;
+  height: 17px;
+  display: block;
+}
+
+.sb-btn[aria-pressed='true'] {
+  background: #c5cfea;
+  color: var(--led);
+}
+
+.mute-toggle .cross,
+.mute-toggle.muted .waves {
+  display: none;
+}
+
+.mute-toggle.muted .cross {
+  display: inline;
+}
+
+.sb-btn:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
 }
 
 .sb-cells {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: 1.4fr 0.7fr 1.3fr;
+  gap: 8px;
+  align-items: end;
 }
 
 .sb-cell {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 1px;
   min-width: 0;
 }
 
 .sb-label {
-  font-size: 9px;
+  font-size: 9.5px;
   font-weight: 900;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--gold);
+  color: #8f9cc4;
 }
 
 .sb-value {
-  font-family: var(--display);
-  font-size: clamp(16px, 4.4vw, 22px);
-  line-height: 1;
-  color: var(--gold-light);
-  font-variant-numeric: tabular-nums;
-  min-height: 20px;
   display: flex;
-  align-items: center;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 26px;
+  font-family: var(--display);
+  font-size: 24px;
+  line-height: 1;
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px rgba(255, 201, 60, 0.35);
+}
+
+.sb-streak {
+  font-family: var(--body);
+  font-size: 11px;
+  font-weight: 900;
+  color: #c5cfea;
+  text-shadow: none;
+  white-space: nowrap;
 }
 
 .sb-lives .sb-value {
-  gap: 1px;
+  align-items: center;
+  gap: 2px;
 }
 
-.carnation {
-  width: 13px;
-  height: 17px;
+.ball {
+  width: 18px;
+  height: 18px;
   display: block;
   transition:
-    opacity 0.3s,
-    filter 0.3s,
-    transform 0.3s;
+    opacity 0.35s,
+    transform 0.35s;
 }
 
-.carnation svg {
+.ball svg {
   width: 100%;
   height: 100%;
   display: block;
 }
 
-.carnation.lost {
-  opacity: 0.25;
-  filter: grayscale(1);
-  transform: scale(0.85);
+.ball.lost {
+  opacity: 0.15;
+  transform: scale(0.8);
 }
 
-.fan {
-  width: clamp(40px, 11vw, 60px);
-  transition: filter 0.3s;
+/* The Olé meter: stage progress in three sections with dividers. */
+.meter {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
 }
 
-.fan svg {
-  width: 100%;
-  display: block;
-  overflow: visible;
-}
-
-.fan-seg {
-  transform-box: view-box;
-  transform-origin: 50px 54px;
-  transition:
-    transform 260ms cubic-bezier(0.3, 1.5, 0.5, 1),
-    opacity 0s 0s;
-}
-
-.fan-seg.closed {
-  opacity: 0;
-  transition:
-    transform 160ms ease-in,
-    opacity 0s 160ms;
-}
-
-.fan.full {
-  filter: drop-shadow(0 0 5px var(--gold-light)) drop-shadow(0 0 2px var(--gold));
-}
-
-.progress {
-  height: 6px;
-  background: #5a463a;
-  border: 1px solid #120a06;
-  border-radius: 4px;
+.meter-section {
+  height: 8px;
+  border-radius: 3px;
+  background: #222b45;
   overflow: hidden;
+  transition: box-shadow 0.3s;
 }
 
-.progress-bar {
+.meter-fill {
   height: 100%;
   width: 0;
-  background: linear-gradient(90deg, var(--red), var(--gold));
+  background: var(--amber-dim);
   transition: width 0.25s ease-out;
 }
 
-/* ------------------------------------------------------------ pitch + advertising boards */
+.meter-section.lit {
+  box-shadow: 0 0 8px rgba(255, 201, 60, 0.7);
+}
 
-.pitch {
+.meter-section.lit .meter-fill {
+  background: var(--amber);
+}
+
+/* ------------------------------------------------------------ pitch frame + hoardings */
+
+.pitch-frame {
   grid-column: 2;
   grid-row: 2;
   position: relative;
   width: var(--pitch);
   height: var(--pitch);
+  background: var(--led);
+  box-shadow: 0 0 0 2px var(--led), 0 0 24px rgba(0, 0, 0, 0.45);
 }
 
-.boards {
-  position: absolute;
-  inset: 0;
-  border: 2px solid var(--ink);
-  border-radius: 6px;
-  overflow: hidden;
-  background: var(--ink);
-  box-shadow: 0 0 0 2px rgba(255, 246, 230, 0.35);
-}
-
-.ad-board {
+.hoarding {
   position: absolute;
   overflow: hidden;
-  background: var(--ink);
+  background: var(--led);
 }
 
-.ad-top,
-.ad-bottom {
+.hoarding-top {
   left: 0;
   right: 0;
+  top: 0;
+  height: var(--btt);
+}
+
+.hoarding-bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
   height: var(--bt);
 }
 
-.ad-top {
-  top: 0;
-}
-
-.ad-bottom {
-  bottom: 0;
-}
-
-.ad-left,
-.ad-right {
-  top: var(--bt);
+.hoarding-left,
+.hoarding-right {
+  top: var(--btt);
   bottom: var(--bt);
   width: var(--bt);
 }
 
-.ad-left {
+.hoarding-left {
   left: 0;
 }
 
-.ad-right {
+.hoarding-right {
   right: 0;
 }
 
-.ad-layer {
+.h-layer {
   position: absolute;
   inset: 0;
-  background-repeat: round;
+  background-repeat: repeat;
+  animation-fill-mode: both;
+  animation-timing-function: linear;
 }
 
-.ad-top .ad-layer,
-.ad-bottom .ad-layer {
+.hoarding-top .h-layer,
+.hoarding-bottom .h-layer {
   background-size: auto 100%;
 }
 
-.ad-left .ad-layer,
-.ad-right .ad-layer {
+.hoarding-left .h-layer,
+.hoarding-right .h-layer {
   background-size: 100% auto;
 }
 
-/* A thin gloss line so the boards read as lit panels. */
-.ad-board::after {
+/* The hoarding wipe runs outwards from the NOW panel at top left, both ways round the pitch. */
+.hoarding-top .h-layer.wipe,
+.hoarding-bottom .h-layer.wipe {
+  animation-name: wipe-right;
+}
+
+.hoarding-left .h-layer.wipe,
+.hoarding-right .h-layer.wipe {
+  animation-name: reveal-down;
+}
+
+/* Dividers between the boards and a soft gloss, like real LED panels. */
+.hoarding::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.25),
-    inset 0 0 6px rgba(0, 0, 0, 0.35);
-}
-
-/* The colour wipe runs clockwise: top left→right, right top→bottom, bottom right→left, left bottom→top. */
-.ad-layer.wipe {
-  animation: 260ms ease-out both;
-}
-
-.ad-top .ad-layer.wipe {
-  animation-name: wipe-right;
-}
-
-.ad-right .ad-layer.wipe {
-  animation-name: wipe-down;
-}
-
-.ad-bottom .ad-layer.wipe {
-  animation-name: wipe-left;
-}
-
-.ad-left .ad-layer.wipe {
-  animation-name: wipe-up;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55);
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.1), transparent 45%);
 }
 
 @keyframes wipe-right {
   from {
     clip-path: inset(0 100% 0 0);
-    filter: brightness(1.6);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }
 
-@keyframes wipe-down {
+@keyframes reveal-down {
   from {
     clip-path: inset(0 0 100% 0);
-    filter: brightness(1.6);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }
 
-@keyframes wipe-left {
-  from {
-    clip-path: inset(0 0 0 100%);
-    filter: brightness(1.6);
-  }
-}
-
-@keyframes wipe-up {
+@keyframes reveal-up {
   from {
     clip-path: inset(100% 0 0 0);
-    filter: brightness(1.6);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }
 
-/* Next three targets: a small plate in the middle of the top board. */
-.next-plate {
-  position: absolute;
-  z-index: 2;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  height: var(--bt);
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 6px;
-  background: var(--ink);
-  border: 2px solid var(--gold);
-  border-top: none;
-  border-radius: 0 0 8px 8px;
+@keyframes reveal-left {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
 }
 
-.next-plate.hidden {
+@keyframes reveal-right {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* The queue on the top hoarding: NOW, the next three (smaller, dimmer), NOW again. */
+.h-queue {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.h-queue.hidden {
   display: none;
 }
 
-.next-label {
-  font-family: var(--display);
-  font-size: clamp(7px, calc(var(--bt) * 0.3), 11px);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--gold-light);
-  line-height: 1;
-  margin-right: 2px;
+.now-panel {
+  height: calc(100% - 6px);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 3px 2px 7px;
+  background: var(--led);
+  border: 2px solid var(--white);
+  border-radius: 5px;
 }
 
-.next-plate .tile {
-  height: calc(var(--bt) - 8px);
+.now-right {
+  flex-direction: row-reverse;
+  padding: 2px 7px 2px 3px;
+}
+
+.now-label {
+  font-family: var(--display);
+  font-size: calc(var(--btt) * 0.36);
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: var(--white);
+}
+
+.now-tile {
+  height: 100%;
   aspect-ratio: 1;
-  opacity: 0.92;
+}
+
+.next-tiles {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 5px;
+  background: rgba(13, 18, 32, 0.78);
+}
+
+.next-tile {
+  height: calc(var(--btt) * 0.56);
+  aspect-ratio: 1;
+  opacity: 0.6;
+}
+
+.h-spacer {
+  flex: 1;
 }
 
 .tile svg {
@@ -539,11 +616,11 @@ button {
 }
 
 .tile.slide {
-  animation: tile-slide 220ms ease-out;
+  animation: tile-slide 160ms ease-out;
 }
 
 .tile.slide-new {
-  animation: tile-in 280ms ease-out;
+  animation: tile-in 220ms ease-out;
 }
 
 @keyframes tile-slide {
@@ -554,132 +631,99 @@ button {
 
 @keyframes tile-in {
   from {
-    transform: translateX(80%) scale(0.5);
+    transform: translateX(60%) scale(0.5);
     opacity: 0;
   }
+}
+
+/* ------------------------------------------------------------ pitch */
+
+.pitch-host {
+  position: absolute;
+  top: var(--btt);
+  left: var(--bt);
+  right: var(--bt);
+  bottom: var(--bt);
 }
 
 .arena {
   position: absolute;
-  inset: var(--bt);
-  z-index: 1;
+  inset: 0;
 }
 
-/* Rule text flashed in the centre circle when the target changes. Never blocks taps. */
-.rule-flash {
-  position: absolute;
-  z-index: 4;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: max-content;
-  max-width: 78%;
-  padding: 6px 14px 7px;
-  border-radius: 999px;
-  background: rgba(43, 26, 18, 0.72);
-  border: 2px solid var(--tgt);
-  text-align: center;
-  pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transition:
-    opacity 0.35s ease-in,
-    visibility 0s 0.35s;
-}
-
-.rule-flash.show {
-  opacity: 1;
-  visibility: visible;
-  transition: none;
-  animation: rule-in 0.18s ease-out;
-}
-
-.rule-main {
-  display: block;
-  font-family: var(--display);
-  font-size: clamp(15px, calc(var(--pitch) * 0.05), 30px);
-  line-height: 1.1;
-  color: var(--cream);
-}
-
-.rule-hint {
-  display: block;
-  font-size: clamp(10px, calc(var(--pitch) * 0.028), 15px);
-  font-weight: 800;
-  color: var(--gold-light);
-}
-
-@keyframes rule-in {
-  from {
-    transform: translate(-50%, -50%) scale(0.85);
-    opacity: 0;
-  }
-}
-
-/* Chalk markings: halfway line and centre circle, behind the holes. */
-.pitch-lines {
+.turf {
   position: absolute;
   inset: 0;
-  pointer-events: none;
-}
-
-.pitch-lines::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 34%;
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%);
-  border: 2px solid rgba(255, 250, 235, 0.6);
-  border-radius: 50%;
-}
-
-.pitch-lines::after {
-  content: '';
-  position: absolute;
-  left: 4%;
-  right: 4%;
-  top: 50%;
-  border-top: 2px solid rgba(255, 250, 235, 0.6);
-}
-
-.barrier {
-  position: absolute;
-  inset: 0;
-  border-radius: 8%;
-  padding: 2.6%;
-  border: 3px solid var(--ink);
+  padding: 6%;
+  /* Mowing stripes. */
   background:
-    repeating-conic-gradient(from 0deg, #a51d22 0deg 7.5deg, #c4282d 7.5deg 15deg);
-  box-shadow:
-    inset 0 0 0 3px var(--gold),
-    0 5px 0 #6e1215,
-    0 10px 18px rgba(43, 26, 18, 0.28);
+    radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.07), transparent 70%),
+    repeating-linear-gradient(to bottom, var(--turf) 0 10%, var(--turf-dark) 10% 20%);
+  box-shadow: inset 0 0 28px rgba(0, 0, 0, 0.28);
 }
 
-.sand {
-  width: 100%;
-  height: 100%;
-  position: relative;
-  border-radius: 6%;
-  padding: 7%;
-  background:
-    radial-gradient(rgba(150, 100, 40, 0.16) 1px, transparent 1.6px) 0 0 / 9px 9px,
-    radial-gradient(rgba(255, 245, 210, 0.35) 1px, transparent 1.6px) 4px 5px / 11px 11px,
-    radial-gradient(circle at 50% 42%, #f6dc9f, var(--sand) 62%, var(--sand-dark));
-  box-shadow:
-    0 0 0 3px var(--gold),
-    0 0 0 5px var(--ink),
-    inset 0 0 28px rgba(140, 90, 30, 0.45);
-}
-
-.arena[data-n='2'] .sand {
+.arena[data-n='2'] .turf {
   padding: 15%;
 }
 
-.arena[data-n='3'] .sand {
+.arena[data-n='3'] .turf {
   padding: 9%;
+}
+
+.markings {
+  position: absolute;
+  inset: 3.5%;
+  border: 2px solid var(--chalk);
+  pointer-events: none;
+}
+
+.markings span {
+  position: absolute;
+  display: block;
+}
+
+.m-half {
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 2px solid var(--chalk);
+}
+
+.m-circle {
+  left: 50%;
+  top: 50%;
+  width: 30%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--chalk);
+  border-radius: 50%;
+}
+
+.m-spot {
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--chalk);
+}
+
+.m-box {
+  left: 28%;
+  right: 28%;
+  height: 15%;
+  border: 2px solid var(--chalk);
+}
+
+.m-box-top {
+  top: -2px;
+  border-top: none;
+}
+
+.m-box-bottom {
+  bottom: -2px;
+  border-bottom: none;
 }
 
 .grid {
@@ -691,7 +735,7 @@ button {
   width: 100%;
   height: 100%;
   touch-action: manipulation;
-  cursor: var(--castanet-cursor, pointer);
+  cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
@@ -709,7 +753,7 @@ button {
   position: absolute;
   inset: 2%;
   border-radius: 14%;
-  border: 3px dashed var(--deep-red);
+  border: 3px dashed var(--white);
   pointer-events: none;
 }
 
@@ -720,10 +764,9 @@ button {
   top: 60%;
   height: 26%;
   border-radius: 50%;
-  background: radial-gradient(ellipse at 50% 30%, #140a05 50%, #3d2412 85%);
+  background: radial-gradient(ellipse at 50% 30%, #0f0905 45%, #3b2717 88%);
   box-shadow:
-    0 0 0 3px #b98a45,
-    0 4px 0 3px #d9ae67,
+    0 0 0 3px #5a3e26,
     inset 0 4px 6px rgba(0, 0, 0, 0.6);
 }
 
@@ -767,16 +810,18 @@ button {
   transition: transform 90ms ease-out;
 }
 
+/* Turf lip in front of the pit, so the critter comes up out of the ground. */
 .lip {
   position: absolute;
-  left: 11%;
-  right: 11%;
+  left: 9%;
+  right: 9%;
   top: 73%;
-  height: 13%;
-  border: 3px solid var(--sand-light);
+  height: 15%;
+  border: 4px solid var(--turf-lip);
   border-top: none;
   border-radius: 0 0 50% 50% / 0 0 100% 100%;
   pointer-events: none;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.2));
 }
 
 .daze {
@@ -800,14 +845,12 @@ button {
 }
 
 @keyframes daze {
-  0% {
+  0%,
+  100% {
     transform: translateX(-8%) rotate(-6deg);
   }
   50% {
     transform: translateX(8%) rotate(6deg);
-  }
-  100% {
-    transform: translateX(-8%) rotate(-6deg);
   }
 }
 
@@ -826,20 +869,19 @@ button {
 .hole.wrong .pit {
   box-shadow:
     0 0 0 3px var(--red),
-    0 4px 0 3px #d9ae67,
     inset 0 4px 6px rgba(0, 0, 0, 0.6);
 }
 
-.arena.shake {
+.pitch-frame.shake {
   animation: shake 0.35s ease-in-out;
 }
 
 @keyframes shake {
   15% {
-    transform: translateX(-7px) rotate(-0.6deg);
+    transform: translateX(-7px) rotate(-0.5deg);
   }
   35% {
-    transform: translateX(6px) rotate(0.5deg);
+    transform: translateX(6px) rotate(0.4deg);
   }
   55% {
     transform: translateX(-4px);
@@ -849,64 +891,105 @@ button {
   }
 }
 
+/* Rule label in the centre circle: shown for ~1.5 s when the target changes. Never blocks taps. */
+.rule-label {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: max-content;
+  max-width: 80%;
+  padding: 6px 16px 7px;
+  border-radius: 999px;
+  background: rgba(13, 18, 32, 0.55);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.35s ease-in,
+    visibility 0s 0.35s;
+}
+
+.rule-label.show {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.12s ease-out;
+}
+
+.rule-main {
+  display: block;
+  font-family: var(--display);
+  font-size: clamp(16px, calc(var(--pitch) * 0.055), 30px);
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  color: var(--white);
+}
+
+.rule-hint {
+  display: block;
+  font-size: clamp(10px, calc(var(--pitch) * 0.028), 14px);
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.8);
+}
+
 /* ------------------------------------------------------------ fx */
 
 .fx-layer {
   position: absolute;
   inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-  border-radius: 8%;
   z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.callout {
+.pop {
   position: absolute;
   left: 50%;
-  top: 24%;
+  top: 26%;
   width: max-content;
   max-width: 94%;
   transform: translate(-50%, -50%);
   font-family: var(--display);
-  font-size: clamp(34px, 11vw, 64px);
   line-height: 1.05;
+  letter-spacing: 0.02em;
   text-align: center;
-  color: var(--gold-light);
+  white-space: nowrap;
+  color: var(--white);
   -webkit-text-stroke: 1.5px var(--ink);
   paint-order: stroke fill;
-  text-shadow:
-    0 3px 0 var(--deep-red),
-    0 5px 0 var(--ink);
-  animation: callout-pop 1.25s ease-out forwards;
-  white-space: nowrap;
+  text-shadow: 0 3px 0 var(--ink);
+  animation: pop 1.25s ease-out forwards;
 }
 
-.callout-oleMax,
-.callout-torero {
-  font-size: clamp(40px, 14vw, 78px);
-  color: #fff3a0;
+.pop-cheer1 {
+  font-size: calc(var(--pitch) * 0.1);
 }
 
-.callout-oops {
-  font-size: clamp(24px, 7.4vw, 40px);
-  color: var(--cream);
-  text-shadow:
-    0 3px 0 var(--red),
-    0 5px 0 var(--ink);
-  white-space: normal;
+.pop-cheer2 {
+  font-size: calc(var(--pitch) * 0.125);
+  color: #fff3c4;
 }
 
-.callout-clear {
-  font-size: clamp(44px, 15vw, 80px);
+.pop-cheer3 {
+  font-size: calc(var(--pitch) * 0.13);
+  color: var(--amber);
 }
 
-@keyframes callout-pop {
+.pop-oops {
+  font-size: calc(var(--pitch) * 0.075);
+  text-shadow: 0 3px 0 var(--red);
+}
+
+@keyframes pop {
   0% {
     transform: translate(-50%, -50%) scale(0.4);
     opacity: 0;
   }
   14% {
-    transform: translate(-50%, -50%) scale(1.12);
+    transform: translate(-50%, -50%) scale(1.1);
     opacity: 1;
   }
   24% {
@@ -925,8 +1008,8 @@ button {
   position: absolute;
   transform: translate(-50%, -50%);
   font-family: var(--display);
-  font-size: clamp(16px, 4.6vw, 24px);
-  color: var(--cream);
+  font-size: clamp(16px, calc(var(--pitch) * 0.05), 26px);
+  color: var(--white);
   -webkit-text-stroke: 1px var(--ink);
   paint-order: stroke fill;
   text-shadow: 0 2px 0 var(--ink);
@@ -936,144 +1019,6 @@ button {
 @keyframes float-up {
   to {
     transform: translate(-50%, -190%);
-    opacity: 0;
-  }
-}
-
-.castanet {
-  position: absolute;
-  width: 54px;
-  height: 54px;
-  transform: translate(-30%, -60%);
-}
-
-.castanet svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.cast-top,
-.cast-bot {
-  transform-box: view-box;
-  transform-origin: 10px 32px;
-}
-
-.cast-top {
-  animation: cast-top 0.16s ease-in forwards;
-}
-
-.cast-bot {
-  animation: cast-bot 0.16s ease-in forwards;
-}
-
-.castanet {
-  animation: cast-fade 0.32s ease-out forwards;
-}
-
-@keyframes cast-top {
-  from {
-    transform: rotate(-30deg);
-  }
-  to {
-    transform: rotate(4deg);
-  }
-}
-
-@keyframes cast-bot {
-  from {
-    transform: rotate(30deg);
-  }
-  to {
-    transform: rotate(-4deg);
-  }
-}
-
-@keyframes cast-fade {
-  70% {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-.sparkle {
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  animation: twinkle 0.9s ease-out both;
-}
-
-.sparkle svg {
-  width: 100%;
-  height: 100%;
-}
-
-@keyframes twinkle {
-  0% {
-    transform: scale(0) rotate(0);
-    opacity: 0;
-  }
-  40% {
-    transform: scale(1.3) rotate(45deg);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(0) rotate(90deg);
-    opacity: 0;
-  }
-}
-
-.rose {
-  position: absolute;
-  width: 10%;
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%) rotate(var(--rot, 0deg));
-  filter: drop-shadow(0 3px 1px rgba(43, 26, 18, 0.35));
-}
-
-.rose svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.rose-toss {
-  animation: rose-toss 0.7s cubic-bezier(0.3, 0.6, 0.4, 1) both;
-}
-
-@keyframes rose-toss {
-  from {
-    transform: translate(-50%, -260%) rotate(calc(var(--rot) - 200deg)) scale(1.8);
-    opacity: 0;
-  }
-  30% {
-    opacity: 1;
-  }
-}
-
-.rose-rain {
-  top: -10%;
-  transform: none;
-  animation: rose-rain 1.6s cubic-bezier(0.45, 0.1, 0.6, 1) both;
-}
-
-@keyframes rose-rain {
-  0% {
-    top: -10%;
-    transform: rotate(0deg);
-  }
-  70% {
-    top: var(--land, 60%);
-    transform: rotate(var(--rot));
-  }
-  85% {
-    opacity: 1;
-  }
-  100% {
-    top: var(--land, 60%);
-    transform: rotate(var(--rot));
     opacity: 0;
   }
 }
@@ -1109,8 +1054,7 @@ button {
   display: none;
   align-items: center;
   justify-content: center;
-  border-radius: 8%;
-  background: rgba(43, 26, 18, 0.32);
+  background: rgba(10, 14, 26, 0.45);
 }
 
 .overlay.show {
@@ -1125,275 +1069,285 @@ button {
 }
 
 .card {
-  width: 86%;
+  width: 84%;
   max-height: 94%;
   overflow: auto;
-  background: var(--cream);
-  border: 3px solid var(--ink);
-  border-radius: 14px;
   padding: 16px 16px 18px;
   text-align: center;
+  background: var(--white);
+  border: 2px solid var(--ink);
+  border-radius: 12px;
   box-shadow: 0 6px 0 var(--ink);
   animation: card-in 0.3s cubic-bezier(0.2, 1.3, 0.4, 1);
 }
 
 @keyframes card-in {
   from {
-    transform: translateY(14px) scale(0.92);
+    transform: translateY(14px) scale(0.94);
     opacity: 0;
   }
 }
 
+.card-kicker {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #5b6a93;
+}
+
+.card-title {
+  margin: 4px 0 0;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(28px, calc(var(--pitch) * 0.1), 50px);
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  color: var(--dusk);
+}
+
+.card-rule {
+  margin: 8px 0 0;
+  font-size: clamp(14px, calc(var(--pitch) * 0.04), 17px);
+  font-weight: 800;
+}
+
 .btn,
-.ticket {
+.ticket-stub {
   cursor: pointer;
   touch-action: manipulation;
 }
 
 .btn {
-  margin-top: 12px;
+  margin-top: 14px;
+  padding: 8px 30px 9px;
   font-family: var(--display);
-  font-size: clamp(18px, 5.4vw, 24px);
-  padding: 9px 26px;
+  font-size: clamp(18px, calc(var(--pitch) * 0.05), 24px);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--white);
+  background: var(--dusk);
+  border: 2px solid var(--ink);
   border-radius: 999px;
-  border: 3px solid var(--ink);
-  background: linear-gradient(180deg, var(--red), var(--deep-red));
-  color: var(--cream);
   box-shadow: 0 4px 0 var(--ink);
 }
 
-.btn:active,
-.ticket:active {
+.btn:active {
   transform: translateY(3px);
   box-shadow: 0 1px 0 var(--ink);
 }
 
 .btn:focus-visible,
-.ticket:focus-visible {
-  outline: 3px dashed var(--ink);
+.ticket-stub:focus-visible {
+  outline: 3px dashed var(--amber);
   outline-offset: 4px;
 }
 
-/* poster */
-
-.poster {
-  width: 88%;
-  padding: 12px 12px 14px;
-  border: 3px solid var(--ink);
-  outline: 3px solid var(--deep-red);
-  outline-offset: -9px;
-  background:
-    radial-gradient(circle at 50% 30%, #fffaf0, #f7e6c4 75%, #ecd09d);
-}
-
-.poster-kicker {
+.ft-newbest {
   display: inline-block;
-  font-family: var(--display);
-  text-transform: uppercase;
-  font-size: clamp(11px, 3.4vw, 16px);
-  letter-spacing: 0.1em;
-  color: var(--cream);
-  background: var(--deep-red);
-  padding: 3px 10px;
-  border-radius: 4px;
   margin-top: 6px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: var(--amber);
+  border: 2px solid var(--ink);
+  font-family: var(--display);
+  font-size: 16px;
+  letter-spacing: 0.04em;
 }
 
-.poster-title {
+.ft-stats {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: center;
+  gap: 3px 16px;
+  margin: 12px 0 0;
+  text-align: left;
+}
+
+.ft-stats dt {
+  font-weight: 800;
+  color: #5b6a93;
+}
+
+.ft-stats dd {
+  margin: 0;
   font-family: var(--display);
-  font-size: clamp(34px, 11vw, 62px);
+  font-size: 18px;
+  text-align: right;
+}
+
+/* Matchday ticket start screen. */
+.ticket {
+  position: relative;
+  display: flex;
+  width: 90%;
+  max-width: 460px;
+  background: #fffdf5;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: 0 6px 0 var(--ink);
+  animation: card-in 0.3s cubic-bezier(0.2, 1.3, 0.4, 1);
+}
+
+.ticket-main {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 12px 12px 14px;
+  text-align: center;
+  background:
+    linear-gradient(to bottom, var(--dusk) 0 6px, transparent 6px),
+    repeating-linear-gradient(135deg, rgba(38, 52, 90, 0.04) 0 6px, transparent 6px 12px);
+  border-radius: 8px 0 0 8px;
+}
+
+.ticket-kicker {
+  margin-top: 4px;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #5b6a93;
+}
+
+.ticket-title {
+  font-family: var(--display);
+  font-size: clamp(30px, calc(var(--pitch) * 0.11), 56px);
   line-height: 1;
-  margin: 6px 0 0;
-  color: var(--red);
-  text-shadow:
-    2px 2px 0 var(--gold),
-    4px 4px 0 var(--ink);
+  letter-spacing: 0.02em;
+  color: var(--dusk);
   white-space: nowrap;
 }
 
-.poster-art {
+.ticket-art {
   display: flex;
   justify-content: center;
   gap: 2%;
-  margin: 4px 0 0;
-  border-bottom: 3px solid var(--terracotta);
+  margin-top: 4px;
+  border-bottom: 2px solid #d9deea;
 }
 
-.poster-critter {
-  width: 24%;
+.ticket-critter {
+  width: 27%;
   aspect-ratio: 1;
   overflow: hidden;
 }
 
-.poster-critter svg {
+.ticket-critter svg {
   width: 100%;
   height: 100%;
   display: block;
 }
 
-.poster-plaza {
-  font-family: var(--display);
-  font-size: clamp(15px, 4.6vw, 22px);
-  color: var(--ink);
+.ticket-fixture {
   margin-top: 6px;
+  font-family: var(--display);
+  font-size: clamp(15px, calc(var(--pitch) * 0.045), 22px);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.poster-date {
-  font-size: clamp(11px, 3.2vw, 14px);
+.ticket-seat,
+.ticket-best {
+  font-size: clamp(10px, calc(var(--pitch) * 0.03), 13px);
   font-weight: 800;
-  color: var(--terracotta);
+  color: #5b6a93;
 }
 
-.ticket {
-  margin-top: 10px;
-  display: inline-flex;
+.ticket-best {
+  margin-top: 2px;
+  color: var(--dusk);
+}
+
+/* The tear-off stub is the Play button. */
+.ticket-stub {
+  position: relative;
+  flex: none;
+  width: 27%;
+  display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0;
-  padding: 7px 34px 6px;
-  border: 2px solid var(--ink);
-  border-radius: 6px;
+  justify-content: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  border-left: 2px dashed var(--ink);
+  border-radius: 0 8px 8px 0;
+  background: var(--amber);
   color: var(--ink);
-  background:
-    radial-gradient(circle at 0 50%, var(--cream) 7px, var(--ink) 7.5px, var(--ink) 9px, transparent 9.5px),
-    radial-gradient(circle at 100% 50%, var(--cream) 7px, var(--ink) 7.5px, var(--ink) 9px, transparent 9.5px),
-    linear-gradient(180deg, var(--gold-light), var(--gold));
-  box-shadow: 0 4px 0 var(--ink);
-  position: relative;
 }
 
-.ticket::before,
-.ticket::after {
+.ticket-stub::before,
+.ticket-stub::after {
   content: '';
   position: absolute;
-  top: 6px;
-  bottom: 6px;
-  border-left: 2px dashed var(--terracotta);
+  left: -9px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3d4a67;
+  border: 2px solid var(--ink);
 }
 
-.ticket::before {
-  left: 16px;
+.ticket-stub::before {
+  top: -10px;
 }
 
-.ticket::after {
-  right: 16px;
+.ticket-stub::after {
+  bottom: -10px;
 }
 
-.ticket-main {
+.stub-main {
   font-family: var(--display);
-  font-size: clamp(22px, 6.4vw, 30px);
-  line-height: 1.05;
-  color: var(--deep-red);
-  text-transform: uppercase;
+  font-size: clamp(24px, calc(var(--pitch) * 0.075), 38px);
+  line-height: 1;
   letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.ticket-sub {
+.stub-sub {
   font-size: 10px;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-.poster-best {
-  margin-top: 6px;
-  font-weight: 900;
-  font-size: 13px;
-  color: var(--terracotta);
-}
-
-/* intro + game over */
-
-.intro-num {
-  font-weight: 900;
-  font-size: 13px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--terracotta);
-}
-
-.intro-title,
-.go-title {
-  margin: 4px 0 0;
-  font-family: var(--display);
-  font-weight: 400;
-  font-size: clamp(28px, 9vw, 46px);
-  line-height: 1.05;
-  color: var(--deep-red);
-  text-shadow: 2px 2px 0 var(--gold);
-}
-
-.intro-sub,
-.go-sub {
-  margin: 4px 0 0;
-  font-style: italic;
-  font-weight: 800;
-}
-
-.intro-rule {
-  margin: 10px 0 0;
-  font-size: clamp(14px, 4vw, 17px);
-  font-weight: 800;
-}
-
-.go-newbest {
-  display: inline-block;
-  margin-top: 6px;
-  padding: 2px 10px;
-  border-radius: 6px;
-  background: var(--gold);
-  border: 2px solid var(--ink);
-  font-family: var(--display);
-  font-size: 15px;
-}
-
-.go-stats {
-  display: grid;
-  grid-template-columns: auto auto;
-  justify-content: center;
-  gap: 2px 14px;
-  margin: 10px 0 0;
-  text-align: left;
-}
-
-.go-stats dt {
-  font-weight: 800;
-  color: var(--terracotta);
-}
-
-.go-stats dd {
-  margin: 0;
-  font-family: var(--display);
-  text-align: right;
+.ticket-stub:active {
+  filter: brightness(0.92);
 }
 
 /* ------------------------------------------------------------ accessibility modes */
 
-.patterns-only .arena,
-.patterns-only .boards,
-.patterns-only .next-plate,
-.patterns-only .stand,
-.patterns-only .scoreboard {
-  filter: grayscale(1) contrast(1.05);
+.patterns-only .stadium {
+  filter: grayscale(1) contrast(1.08);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .arena.shake,
-  .stand .tier,
-  .stand .tgt-item,
-  .rule-flash,
+  .pitch-frame.shake,
+  .stand .crowd,
+  .stand .crowd-layer,
   .tile.slide,
   .tile.slide-new,
   .hole.up.hit .daze,
-  .card {
+  .card,
+  .ticket {
     animation: none !important;
   }
 
-  .callout {
-    animation: callout-fade 1.25s linear forwards;
+  /* Cheers still show, as a brightness flash instead of a jump. */
+  .stand.cheer .crowd,
+  .stand.cheer-all .crowd {
+    filter: brightness(1.3);
   }
 
-  @keyframes callout-fade {
+  .pop {
+    animation: pop-fade 1.25s linear forwards;
+  }
+
+  .float-points {
+    animation: pop-fade 0.85s linear forwards;
+  }
+
+  @keyframes pop-fade {
     0%,
     80% {
       opacity: 1;
@@ -1401,9 +1355,5 @@ button {
     100% {
       opacity: 0;
     }
-  }
-
-  .float-points {
-    animation: callout-fade 0.85s linear forwards;
   }
 }

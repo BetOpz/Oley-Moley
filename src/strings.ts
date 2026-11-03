@@ -1,49 +1,50 @@
 // Every player-facing string lives here so it can be tweaked or localised.
+// Plain British English. "Olé" appears only in the title and the crowd's three cheers
+// (tests/strings.test.ts enforces this).
 import type { Animal, HatColor } from './config';
 
 export const STR = {
   gameTitle: 'Olé Molé!',
-  posterKicker: 'Gran Fiesta de Topos',
-  posterPlaza: 'Plaza de los Topos',
-  posterTagline: 'Whack the moles · ¡Olé!',
-  posterPlay: 'Play',
-  posterTicketSub: 'Entrada · Sol y Sombra',
-  posterBest: (score: number) => `Best ${score}`,
+
+  ticketKicker: 'Matchday ticket',
+  ticketFixture: 'Moles v Mallets',
+  ticketGround: 'North Stand · Row M · Seat 1',
+  ticketPlay: 'Play',
+  ticketStubSub: 'Kick-off',
+  ticketBest: (score: number) => `Best score ${score}`,
 
   score: 'Score',
   stage: 'Stage',
   lives: 'Lives',
   livesAria: (n: number, max: number) => `${n} of ${max} lives`,
+  streak: (n: number) => `×${n} streak`,
+  meterAria: 'Stage progress',
+  mute: 'Sound on or off',
+  colourToggle: 'Colour off (patterns only)',
 
   introStageLine: (num: number, grid: number) => `Stage ${num} · ${grid} × ${grid}`,
-  introGo: '¡Vamos!',
-  gridSize: (n: number) => `${n} × ${n}`,
-  nowLabel: 'AHORA',
-  nextLabel: 'Luego',
+  introGo: 'Play',
+  nowLabel: 'NOW',
+  nextLabel: 'Next',
+  whackAny: 'WHACK ANY MOLE',
 
-  stageClear: '¡Bravo!',
+  /** The crowd's three cheers, one per section of the stage progress meter. */
+  cheers: ['Olé!', 'Olé, olé!', 'Olé, olé, olé!'] as const,
 
-  gameOverTitle: '¡Se acabó!',
-  gameOverSub: "It's over!",
-  gameOverScore: 'Score',
-  gameOverStage: 'Stage reached',
-  gameOverBest: 'Best score',
-  gameOverBestStreak: 'Best streak',
-  gameOverNewBest: '¡Nuevo récord!',
-  playAgain: 'Play again',
-
-  callouts: {
-    ole: '¡Olé!',
-    oleOle: '¡Olé, olé!',
-    oleMax: '¡OLÉ!',
-    torero: '¡Torero!',
-    wrongHat: '¡Ay, el sombrero!',
-    wrongAnimal: '¡Ese no!',
-    escape: '¡Se escapó!',
+  messages: {
+    wrongHat: 'Wrong hat!',
+    wrongAnimal: 'Wrong one!',
+    escape: 'Got away!',
   },
 
-  colourToggle: 'Toggle colour (pattern-only mode)',
-  boardAria: 'Arena. Use arrow keys to move, Space or Enter to whack.',
+  fullTimeTitle: 'Full time',
+  fullTimeScore: 'Score',
+  fullTimeStage: 'Stage reached',
+  fullTimeBest: 'Best score',
+  fullTimeNewBest: 'New best!',
+  playAgain: 'Play again',
+
+  boardAria: 'Pitch. Use arrow keys to move, Space or Enter to whack.',
   holeAria: (row: number, col: number, what: string | null) =>
     `Hole ${row + 1}, ${col + 1}${what ? `: ${what}` : ''}`,
 
@@ -63,34 +64,24 @@ export const STR = {
     mole: 'mole',
     rabbit: 'rabbit',
     frog: 'frog',
-    bull: 'bull calf',
+    fox: 'fox',
   } as Record<Animal, string>,
 
   ruleAny: 'Whack any mole',
-  patternHint: (c: HatColor) => `(${STR.patternName[c]} band)`,
+  patternHint: (c: HatColor) => `${STR.patternName[c]} band`,
   ruleHat: (c: HatColor) => `Hit ${STR.colorName[c]} hats`,
   ruleAnimal: (a: Animal, c: HatColor) => `Hit the ${STR.animalName[a]} in ${STR.colorName[c]}`,
   itemLabel: (a: Animal, c: HatColor | 'none') =>
     c === 'none' ? STR.animalName[a] : `${STR.animalName[a]} in ${STR.colorName[c]} hat (${STR.patternName[c]})`,
 
   stages: [
-    { title: 'El Paseíllo', sub: 'The opening parade.', rule: 'Whack any mole that pops up.' },
-    { title: 'Más Agujeros', sub: 'More holes, quicker moles.', rule: 'Whack any mole — they are faster now.' },
-    { title: '¡Sombreros!', sub: 'Hats on.', rule: 'Only whack the hat shown on the front tile.' },
-    { title: 'Toda la Moda', sub: 'All four hat colours.', rule: 'Match the front tile’s hat — four colours now.' },
-    { title: 'Los Invitados', sub: 'The guests arrive.', rule: 'Match the animal and the hat.' },
-    { title: 'La Gran Fiesta', sub: 'Every animal, every hat.', rule: 'Five by five. Match the animal and the hat.' },
+    { title: 'Kick-off', rule: 'Whack any mole.' },
+    { title: 'More Holes', rule: 'Bigger pitch, quicker moles.' },
+    { title: 'Hats On', rule: 'Only whack the hat colour on the NOW panel.' },
+    { title: 'Full Kit', rule: 'All four hat colours.' },
+    { title: 'Mascots', rule: 'Other animals join. Match the animal and the hat.' },
+    { title: 'Cup Final', rule: '5 × 5, every animal, every hat.' },
   ],
-  encoreTitle: (n: number) => `Otra Vez ${n}`,
-  encoreSub: 'Again — and faster!',
-
-  months: [
-    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-  ],
-  weekdays: ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'],
-  posterDate: (d: Date) => {
-    const day = STR.weekdays[d.getDay()];
-    return `${day[0].toUpperCase()}${day.slice(1)}, ${d.getDate()} de ${STR.months[d.getMonth()]} de ${d.getFullYear()}`;
-  },
+  extraTimeTitle: (n: number) => `Extra Time ${n}`,
+  extraTimeRule: 'Same again, only faster.',
 };

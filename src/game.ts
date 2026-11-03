@@ -1,5 +1,5 @@
 // Pure game state + rules. No DOM. Time is a game clock advanced by tick().
-import { ENCORE, STAGES, STREAK, TUNING } from './config';
+import { ENCORE, OLE_SECTIONS, STAGES, TUNING } from './config';
 import type { ItemType, Mode, StageDef } from './config';
 import { between, chooseSpawn, matches, pick, poolFor, randomTarget } from './spawner';
 import type { Rng, StagePool } from './spawner';
@@ -23,7 +23,7 @@ export interface Critter {
 }
 
 export interface Stage extends StageDef {
-  /** 0-based index into the run (stage 7 = index 6 = Otra Vez 1). */
+  /** 0-based index into the run (stage 7 = index 6 = Extra Time 1). */
   index: number;
   /** 1-based stage number used for scoring and display. */
   number: number;
@@ -31,7 +31,8 @@ export interface Stage extends StageDef {
   encore: number;
 }
 
-export type OleLevel = 'ole' | 'oleOle' | 'oleMax' | 'torero';
+/** Olé meter section reached: 1 = "Olé!", 2 = "Olé, olé!", 3 = "Olé, olé, olé!" (stage clear). */
+export type OleLevel = 1 | 2 | 3;
 export type WrongKind = 'hat' | 'animal';
 
 export type GameEvent =
@@ -95,13 +96,19 @@ export function pointsFor(stageNumber: number, streak: number): number {
   );
 }
 
-export function oleFor(streak: number): OleLevel | null {
-  if (streak === STREAK.ole) return 'ole';
-  if (streak === STREAK.oleOle) return 'oleOle';
-  if (streak === STREAK.oleMax) return 'oleMax';
-  if (streak >= STREAK.toreroFrom && (streak - STREAK.toreroFrom) % STREAK.toreroEvery === 0) {
-    return 'torero';
-  }
+/** Hits needed to reach each Olé meter section: ceil(goal × 1/3), ceil(goal × 2/3), goal. */
+export function oleThresholds(goal: number): number[] {
+  const t: number[] = [];
+  for (let k = 1; k < OLE_SECTIONS; k++) t.push(Math.ceil((goal * k) / OLE_SECTIONS));
+  t.push(goal);
+  return t;
+}
+
+/** The Olé cheer that fires when progress reaches `progress`, if any. Progress only rises by 1. */
+export function oleFor(progress: number, goal: number): OleLevel | null {
+  const t = oleThresholds(goal);
+  // If thresholds coincide (tiny goals), the highest section wins.
+  for (let k = t.length - 1; k >= 0; k--) if (t[k] === progress) return (k + 1) as OleLevel;
   return null;
 }
 
@@ -280,7 +287,7 @@ export function whack(g: GameState, hole: number): GameEvent[] {
     const points = pointsFor(g.stage.number, g.streak);
     g.score += points;
     g.progress += 1;
-    events.push({ type: 'hit', critter: c, points, streak: g.streak, ole: oleFor(g.streak) });
+    events.push({ type: 'hit', critter: c, points, streak: g.streak, ole: oleFor(g.progress, g.stage.goal) });
     if (g.stage.mode !== 'plain') {
       shiftQueue(g);
       events.push({ type: 'queue' });

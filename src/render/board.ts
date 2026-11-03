@@ -1,8 +1,7 @@
-// The stadium: four stands, the advertising boards, the pitch, holes and critters.
+// The pitch: turf, markings, holes and critters, plus keyboard navigation.
 import type { ItemType } from '../config';
 import { STR } from '../strings';
-import { critterSvg, crowdSvg, dizzyStarsSvg } from './art';
-import type { Side } from './art';
+import { critterSvg, dizzyStarsSvg } from './art';
 
 export interface Point {
   x: number;
@@ -17,11 +16,6 @@ interface HoleEl {
 }
 
 export class Board {
-  /** The four stands, keyed by side. The top one also holds the scoreboard. */
-  readonly stands: Record<Side, HTMLElement>;
-  /** Advertising boards round the pitch, keyed by side. */
-  readonly boards: Record<Side, HTMLElement>;
-  readonly pitch: HTMLElement;
   readonly arena: HTMLElement;
   readonly grid: HTMLElement;
   readonly fxLayer: HTMLElement;
@@ -32,38 +26,19 @@ export class Board {
   private whackCb: (hole: number, at: Point | null) => void = () => {};
 
   constructor(parent: HTMLElement) {
-    const sides: Side[] = ['top', 'right', 'bottom', 'left'];
-    this.stands = {} as Record<Side, HTMLElement>;
-    this.boards = {} as Record<Side, HTMLElement>;
-    for (const side of sides) {
-      const stand = el('div', `stand stand-${side}`);
-      stand.innerHTML = crowdSvg(side);
-      this.stands[side] = stand;
-      parent.append(stand);
-    }
-    this.pitch = el('div', 'pitch');
-    const boardsEl = el('div', 'boards');
-    for (const side of sides) {
-      const b = el('div', `ad-board ad-${side}`);
-      b.setAttribute('aria-hidden', 'true');
-      this.boards[side] = b;
-      boardsEl.append(b);
-    }
     this.arena = el('div', 'arena');
-    const barrier = el('div', 'barrier');
-    const sand = el('div', 'sand');
-    const lines = el('div', 'pitch-lines');
-    lines.setAttribute('aria-hidden', 'true');
+    const turf = el('div', 'turf');
+    const markings = el('div', 'markings');
+    markings.setAttribute('aria-hidden', 'true');
+    markings.innerHTML = '<span class="m-half"></span><span class="m-circle"></span><span class="m-spot"></span><span class="m-box m-box-top"></span><span class="m-box m-box-bottom"></span>';
     this.grid = el('div', 'grid');
     this.grid.setAttribute('role', 'group');
     this.grid.setAttribute('aria-label', STR.boardAria);
     this.fxLayer = el('div', 'fx-layer');
     this.overlay = el('div', 'overlay');
-    sand.append(lines, this.grid);
-    barrier.append(sand);
-    this.arena.append(barrier, this.fxLayer, this.overlay);
-    this.pitch.append(boardsEl, this.arena);
-    parent.append(this.pitch);
+    turf.append(markings, this.grid);
+    this.arena.append(turf, this.fxLayer, this.overlay);
+    parent.append(this.arena);
 
     this.grid.addEventListener('pointerdown', (e) => {
       const hole = (e.target as HTMLElement).closest<HTMLElement>('.hole');
