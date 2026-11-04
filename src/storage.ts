@@ -1,4 +1,4 @@
-// Best score / best streak / settings (colour mode, mute) in localStorage. Every access is guarded:
+// Best score / best streak / highest division reached / settings (colour mode, mute) in localStorage. Every access is guarded:
 // storage can be missing or throw (private windows, blocked site data).
 
 const KEY = 'ole-mole:v1';
@@ -6,11 +6,13 @@ const KEY = 'ole-mole:v1';
 export interface Saved {
   bestScore: number;
   bestStreak: number;
+  /** Highest division reached (1…4). The ticket lets the player kick off from any of them. */
+  highestDivision: number;
   patternsOnly: boolean;
   muted: boolean;
 }
 
-const DEFAULTS: Saved = { bestScore: 0, bestStreak: 0, patternsOnly: false, muted: false };
+const DEFAULTS: Saved = { bestScore: 0, bestStreak: 0, highestDivision: 1, patternsOnly: false, muted: false };
 
 export function load(): Saved {
   try {
@@ -20,6 +22,7 @@ export function load(): Saved {
     return {
       bestScore: Number(data.bestScore) || 0,
       bestStreak: Number(data.bestStreak) || 0,
+      highestDivision: Math.max(1, Math.min(4, Math.floor(Number(data.highestDivision) || 1))),
       patternsOnly: Boolean(data.patternsOnly),
       muted: Boolean(data.muted),
     };
@@ -44,4 +47,14 @@ export function recordRun(score: number, streak: number): { saved: Saved; newBes
   saved.bestStreak = Math.max(saved.bestStreak, streak);
   save(saved);
   return { saved, newBest };
+}
+
+/** Remember that the player has reached `division`. */
+export function recordDivision(division: number): Saved {
+  const saved = load();
+  if (division > saved.highestDivision) {
+    saved.highestDivision = Math.min(4, division);
+    save(saved);
+  }
+  return saved;
 }

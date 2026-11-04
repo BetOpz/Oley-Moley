@@ -1,7 +1,7 @@
-// The pitch: turf, markings, holes and critters, plus keyboard navigation.
+// The pitch: turf, markings, holes and moles, plus keyboard navigation.
 import type { ItemType } from '../config';
 import { STR } from '../strings';
-import { critterSvg, dizzyStarsSvg } from './art';
+import { dizzyStarsSvg, moleSvg } from './art';
 
 export interface Point {
   x: number;
@@ -90,9 +90,9 @@ export class Board {
     if (!h) return;
     h.item = item;
     h.id = id;
-    h.critter.innerHTML = critterSvg(item);
+    h.critter.innerHTML = moleSvg(item);
     h.root.classList.remove('hit', 'wrong', 'up');
-    h.root.dataset.animal = item.animal;
+    h.root.classList.toggle('ref', item.isRef);
     // Force a style flush so the rise transition runs from the hidden position.
     void h.critter.offsetWidth;
     h.root.classList.add('up');
@@ -154,7 +154,7 @@ export class Board {
     const col = i % this.n;
     h.root.setAttribute(
       'aria-label',
-      STR.holeAria(row, col, h.item ? STR.itemLabel(h.item.animal, h.item.color) : null),
+      STR.holeAria(row, col, h.item ? STR.itemLabel(h.item.kit, h.item.role, h.item.isRef) : null),
     );
   }
 

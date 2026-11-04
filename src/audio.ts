@@ -12,14 +12,17 @@ export type SoundName =
   | 'ole-1'
   | 'ole-2'
   | 'ole-3'
+  | 'ole-4'
+  | 'roar'
   | 'groan'
+  | 'jeer'
   | 'whistle'
   | 'fulltime'
   | 'crowd-loop';
 
 const NAMES: SoundName[] = [
-  'hit-1', 'hit-2', 'hit-3', 'hit-4', 'ole-1', 'ole-2', 'ole-3',
-  'groan', 'whistle', 'fulltime', 'crowd-loop',
+  'hit-1', 'hit-2', 'hit-3', 'hit-4', 'ole-1', 'ole-2', 'ole-3', 'ole-4',
+  'roar', 'groan', 'whistle', 'jeer', 'fulltime', 'crowd-loop',
 ];
 
 const LOOP_GAIN = 0.12;
@@ -232,6 +235,24 @@ function synth(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, name: Soun
     shout(at + 0.24, 0.42, n, 215, 1700, peak, 0.97);
   };
 
+  /** A referee's pea whistle: a high tone with a fast trill. */
+  const peaWhistle = (at: number, dur: number) => {
+    const o = track(ctx.createOscillator());
+    o.type = 'sine';
+    o.frequency.value = 2900;
+    const lfo = track(ctx.createOscillator());
+    lfo.frequency.value = 28;
+    const depth = ctx.createGain();
+    depth.gain.value = 160;
+    lfo.connect(depth).connect(o.frequency);
+    const g = env(at, 0.01, dur, 0.06, 0.22);
+    o.connect(g).connect(out);
+    o.start(at);
+    lfo.start(at);
+    o.stop(at + dur + 0.12);
+    lfo.stop(at + dur + 0.12);
+  };
+
   switch (name) {
     case 'hit-1':
     case 'hit-2':
@@ -249,48 +270,60 @@ function synth(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, name: Soun
       noiseBurst(t0, 0.03, 'lowpass', 1800, 0.7, 0.25);
       break;
     }
+    // One stand, then two, then three, then the whole ground, shouting in rhythm.
     case 'ole-1':
-      ole(t0, 6, 0.32);
+      ole(t0, 6, 0.3);
       break;
     case 'ole-2':
-      ole(t0, 10, 0.42);
-      ole(t0 + 0.75, 10, 0.42);
+      ole(t0, 10, 0.38);
+      ole(t0 + 0.75, 10, 0.38);
       break;
     case 'ole-3':
-      for (let i = 0; i < 3; i++) {
-        ole(t0 + i * 0.75, 14, 0.5);
+      for (let i = 0; i < 3; i++) ole(t0 + i * 0.75, 13, 0.44);
+      break;
+    case 'ole-4':
+      for (let i = 0; i < 4; i++) {
+        ole(t0 + i * 0.75, 16, 0.5);
         clap(t0 + i * 0.75 + 0.5);
         clap(t0 + i * 0.75 + 0.62);
       }
-      clap(t0 + 2.3, 0.45);
-      clap(t0 + 2.45, 0.45);
-      clap(t0 + 2.6, 0.45);
+      clap(t0 + 3.05, 0.45);
+      clap(t0 + 3.2, 0.45);
+      clap(t0 + 3.35, 0.45);
       break;
-    case 'groan':
-      shout(t0, 1.0, 12, 200, 480, 0.4, 0.7);
-      break;
-    case 'whistle': {
-      // A pea whistle: a high tone with a fast trill.
-      const o = track(ctx.createOscillator());
-      o.type = 'sine';
-      o.frequency.value = 2900;
-      const lfo = track(ctx.createOscillator());
-      lfo.frequency.value = 28;
-      const depth = ctx.createGain();
-      depth.gain.value = 160;
-      lfo.connect(depth).connect(o.frequency);
-      const g = env(t0, 0.01, 0.32, 0.06, 0.22);
-      o.connect(g).connect(out);
-      o.start(t0);
-      lfo.start(t0);
-      o.stop(t0 + 0.45);
-      lfo.stop(t0 + 0.45);
+    case 'roar': {
+      // A big crowd roar: a swell of broadband noise with shouting voices underneath.
+      const src = track(ctx.createBufferSource());
+      src.buffer = noise;
+      src.loop = true;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 900;
+      f.Q.value = 0.5;
+      const g = env(t0, 0.35, 0.9, 1.1, 0.5);
+      src.connect(f).connect(g).connect(out);
+      src.start(t0);
+      src.stop(t0 + 2.6);
+      shout(t0 + 0.1, 1.6, 16, 230, 1100, 0.25, 1.05);
       break;
     }
+    case 'groan':
+      // The crowd's "ooooh".
+      shout(t0, 1.0, 12, 200, 480, 0.4, 0.7);
+      break;
+    case 'jeer':
+      // A crowd "booo".
+      shout(t0, 1.1, 14, 135, 340, 0.4, 0.92);
+      break;
+    case 'whistle':
+      peaWhistle(t0, 0.32);
+      break;
     case 'fulltime':
-      // A deflated sigh, then a slow handclap.
-      shout(t0, 0.9, 10, 170, 420, 0.3, 0.75);
-      for (let i = 0; i < 4; i++) clap(t0 + 1.0 + i * 0.7, 0.3);
+      // The long final whistle (short, short, long), then a deflated sigh.
+      peaWhistle(t0, 0.18);
+      peaWhistle(t0 + 0.3, 0.18);
+      peaWhistle(t0 + 0.6, 1.0);
+      shout(t0 + 1.75, 1.0, 10, 170, 420, 0.3, 0.72);
       break;
     case 'crowd-loop':
       break;

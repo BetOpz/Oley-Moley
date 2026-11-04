@@ -1,9 +1,10 @@
 // Bootstraps the game and wires the pure game state to the DOM renderers and sound.
 import './style.css';
-import { beginStage, createGame, nextStage, startRun, target, tick, whack } from './game';
+import { DIVISIONS, STAGES } from './config';
+import { beginStage, createGame, nextStage, runIndex, startRun, target, tick, whack } from './game';
 import type { GameEvent } from './game';
 import { AudioManager } from './audio';
-import { load, recordRun, save } from './storage';
+import { load, recordDivision, recordRun, save } from './storage';
 import { STR } from './strings';
 import { Board } from './render/board';
 import { Fx, reducedMotion } from './render/fx';
@@ -52,12 +53,14 @@ function syncHud(): void {
   hud.setScore(g.score, g.streak);
   hud.setStage(g.stage);
   hud.setLives(g.lives);
+  hud.setCards(g.yellows);
   hud.setProgress(g.progress, g.stage.goal);
-  stadium.setTarget(g.stage.mode, g.queue, false);
+  stadium.setTarget(g.stage, g.queue, false, false);
 }
 
 function prepareStage(): void {
   fx.reset();
+  stadium.sitDown();
   board.build(g.stage.grid);
   syncHud();
 }
@@ -66,7 +69,7 @@ function play(viaKeyboard = false): void {
   overlay.hide();
   beginStage(g);
   last = performance.now();
-  stadium.flashRule(g.stage.mode, target(g));
+  stadium.flashRule(g.stage, target(g));
   // Keyboard players get focus on the grid; pointer players don't see a focus ring.
   if (viaKeyboard) board.focusGrid();
   else (document.activeElement as HTMLElement | null)?.blur();
@@ -77,33 +80,51 @@ function showIntro(): void {
   overlay.intro(g.stage, play);
 }
 
-/** Dev/testing aid: ?stage=5 starts the run at stage 5. */
-function startIndexFromUrl(): number {
+/** Dev/testing aid: ?div=3&stage=5 starts a run at Division One, stage 5. */
+function startFromUrl(): number | null {
   try {
-    const n = Number(new URLSearchParams(window.location.search).get('stage'));
-    return Number.isInteger(n) && n >= 1 && n <= 50 ? n - 1 : 0;
+    const q = new URLSearchParams(window.location.search);
+    if (!q.has('div') && !q.has('stage')) return null;
+    const d = Number(q.get('div') ?? 1);
+    const s = Number(q.get('stage') ?? 1);
+    const ok = (n: number, max: number) => Number.isInteger(n) && n >= 1 && n <= max;
+    return runIndex(ok(d, DIVISIONS.length) ? d : 1, ok(s, STAGES.length) ? s : 1);
   } catch {
-    return 0;
+    return null;
   }
+}
+
+function startAt(division: number): void {
+  const fromUrl = startFromUrl();
+  startRun(g, fromUrl ?? runIndex(division));
+  saved = recordDivision(g.stage.division);
 }
 
 function showTicket(): void {
   prepareStage();
-  overlay.ticket(saved.bestScore, () => {
-    startRun(g, startIndexFromUrl());
+  overlay.ticket(saved.bestScore, saved.highestDivision, (division) => {
+    startAt(division);
     showIntro();
   });
 }
 
-function onStageClear(): void {
+function onStageClear(promoted: boolean): void {
   board.clearAll();
   fx.confetti();
+  audio.play('ole-4');
   window.setTimeout(
     () => {
       nextStage(g);
-      showIntro();
+      if (promoted) {
+        saved = recordDivision(g.stage.division);
+        audio.play('roar');
+        prepareStage();
+        overlay.promoted(g.stage, play);
+      } else {
+        showIntro();
+      }
     },
-    reducedMotion() ? 1400 : 2600,
+    reducedMotion() ? 1600 : 3000,
   );
 }
 
@@ -114,15 +135,21 @@ function onGameOver(): void {
   saved = s;
   window.setTimeout(() => {
     overlay.fullTime(
-      { score: g.score, stage: g.stage.number, bestScore: s.bestScore, newBest },
-      (viaKeyboard) => {
-        // Play again starts immediately at stage 1.
-        startRun(g);
+      {
+        score: g.score,
+        stage: g.stage,
+        bestScore: s.bestScore,
+        newBest,
+        highestDivision: s.highestDivision,
+      },
+      (division, viaKeyboard) => {
+        // Play again starts straight away in the chosen division.
+        startRun(g, runIndex(division));
         prepareStage();
         play(viaKeyboard);
       },
     );
-  }, 650);
+  }, 900);
 }
 
 function handle(events: GameEvent[]): void {
@@ -139,22 +166,36 @@ function handle(events: GameEvent[]): void {
         if (ev.ole) {
           fx.pop(STR.cheers[ev.ole - 1], `cheer${ev.ole}`);
           stadium.cheer(ev.ole);
-          audio.play(`ole-${ev.ole}`);
+          // The full four-olé chant plays with the stage clear.
+          if (ev.ole < 4) audio.play(`ole-${ev.ole}`);
         } else {
           audio.hit();
         }
         break;
       case 'wrong':
         board.bonk(ev.critter.hole, true);
-        fx.pop(ev.kind === 'animal' ? STR.messages.wrongAnimal : STR.messages.wrongHat, 'oops');
+        fx.pop(ev.kind === 'role' ? STR.messages.wrongRole : STR.messages.wrongKit, 'oops');
         fx.shake();
         audio.play('groan');
         break;
-      case 'escape':
+      case 'ref':
+        board.bonk(ev.critter.hole, true);
+        fx.card(board.holePoint(ev.critter.hole), ev.card);
+        fx.pop(ev.card === 'red' ? STR.messages.red : STR.messages.yellow, ev.card);
+        hud.setCards(ev.yellows, ev.card);
+        hud.setScore(g.score, g.streak);
+        if (ev.card === 'red') fx.shake();
+        audio.play('whistle');
+        window.setTimeout(() => audio.play('jeer'), 380);
+        break;
+      case 'escape': {
         fx.pop(STR.messages.escape, 'oops');
         fx.shake();
-        audio.play('whistle');
+        // A short, disappointed version of the groan.
+        const s = audio.play('groan', 1.18);
+        window.setTimeout(() => s?.stop(), 520);
         break;
+      }
       case 'sink':
         board.sink(ev.critter.hole, ev.critter.id);
         break;
@@ -162,14 +203,14 @@ function handle(events: GameEvent[]): void {
         board.clear(ev.critter.hole, ev.critter.id);
         break;
       case 'queue':
-        stadium.setTarget(g.stage.mode, g.queue, true);
+        stadium.setTarget(g.stage, g.queue, true);
         break;
       case 'lives':
         hud.setLives(ev.lives);
         hud.setScore(g.score, g.streak);
         break;
       case 'stageClear':
-        onStageClear();
+        onStageClear(ev.promoted);
         break;
       case 'gameOver':
         onGameOver();

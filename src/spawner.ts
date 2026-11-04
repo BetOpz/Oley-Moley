@@ -1,14 +1,18 @@
-// Spawn + decoy selection. Pure functions over an injected RNG.
-import { ANIMALS, DECOY_RATIOS, HAT_COLORS, TUNING } from './config';
-import type { Animal, HatColor, ItemType, Mode } from './config';
+// Spawn, referee and decoy selection. Pure functions over an injected RNG.
+import { DECOY_RATIOS, KITS, REFEREE, ROLES, TUNING } from './config';
+import type { ItemType, Kit, Mode, Role } from './config';
 
 export type Rng = () => number;
 
 export interface StagePool {
   mode: Mode;
-  colors: HatColor[];
-  animals: Animal[];
+  kits: Kit[];
+  roles: Role[];
+  referee: boolean;
 }
+
+export const PLAIN_MOLE: ItemType = Object.freeze({ kit: 'none', role: 'none', isRef: false }) as ItemType;
+export const REF: ItemType = Object.freeze({ kit: 'none', role: 'none', isRef: true }) as ItemType;
 
 export function pick<T>(rng: Rng, list: readonly T[]): T {
   return list[Math.min(list.length - 1, Math.floor(rng() * list.length))];
@@ -18,32 +22,35 @@ export function between(rng: Rng, lo: number, hi: number): number {
   return lo + (hi - lo) * rng();
 }
 
-export function poolFor(mode: Mode, colors: number, animals: number): StagePool {
+export function poolFor(mode: Mode, kits: number, roles: number, referee: boolean): StagePool {
   return {
     mode,
-    colors: HAT_COLORS.slice(0, colors),
-    animals: mode === 'animal' ? ANIMALS.slice(0, animals) : ['mole'],
+    kits: mode === 'plain' ? [] : KITS.slice(0, kits),
+    roles: mode === 'role' ? ROLES.slice(0, roles) : [],
+    referee,
   };
 }
 
-/** Does the item count as a valid hit for this target in this mode? */
+/** Does the item count as a valid hit for this target in this mode? The referee never does. */
 export function matches(item: ItemType, target: ItemType, mode: Mode): boolean {
+  if (item.isRef) return false;
   switch (mode) {
     case 'plain':
-      return item.animal === 'mole';
-    case 'hat':
-      return item.color === target.color;
-    case 'animal':
-      return item.color === target.color && item.animal === target.animal;
+      return true;
+    case 'kit':
+      return item.kit === target.kit;
+    case 'role':
+      return item.kit === target.kit && item.role === target.role;
   }
 }
 
-/** A random target for the queue. */
+/** A random target for the queue. Never the referee. */
 export function randomTarget(rng: Rng, pool: StagePool): ItemType {
-  if (pool.mode === 'plain') return { animal: 'mole', color: 'none' };
+  if (pool.mode === 'plain') return { ...PLAIN_MOLE };
   return {
-    animal: pool.mode === 'animal' ? pick(rng, pool.animals) : 'mole',
-    color: pick(rng, pool.colors),
+    kit: pick(rng, pool.kits),
+    role: pool.mode === 'role' ? pick(rng, pool.roles) : 'none',
+    isRef: false,
   };
 }
 
@@ -51,27 +58,27 @@ function others<T>(list: readonly T[], not: T): T[] {
   return list.filter((x) => x !== not);
 }
 
-/** A decoy that never matches the target. */
+/** A decoy mole that never matches the target. */
 export function makeDecoy(rng: Rng, pool: StagePool, target: ItemType): ItemType {
   if (pool.mode === 'plain') {
-    // Every mole is valid in plain mode; there are no decoys.
-    return { animal: 'mole', color: 'none' };
+    // Every mole is valid in plain mode; there are no decoys (only the referee).
+    return { ...PLAIN_MOLE };
   }
-  const wrongColors = others(pool.colors, target.color as HatColor);
-  if (pool.mode === 'hat') {
-    return { animal: 'mole', color: pick(rng, wrongColors) };
+  const wrongKits = others(pool.kits, target.kit as Kit);
+  if (pool.mode === 'kit') {
+    return { kit: pick(rng, wrongKits), role: 'none', isRef: false };
   }
-  const wrongAnimals = others(pool.animals, target.animal);
+  const wrongRoles = others(pool.roles, target.role as Role);
   const r = rng();
-  const canWrongColor = wrongColors.length > 0;
-  const canWrongAnimal = wrongAnimals.length > 0;
-  if (canWrongColor && (r < DECOY_RATIOS.rightAnimalWrongColor || !canWrongAnimal)) {
-    return { animal: target.animal, color: pick(rng, wrongColors) };
+  const canWrongKit = wrongKits.length > 0;
+  const canWrongRole = wrongRoles.length > 0;
+  if (canWrongKit && (r < DECOY_RATIOS.rightRoleWrongKit || !canWrongRole)) {
+    return { kit: pick(rng, wrongKits), role: target.role, isRef: false };
   }
-  if (canWrongAnimal && r < DECOY_RATIOS.rightAnimalWrongColor + DECOY_RATIOS.rightColorWrongAnimal) {
-    return { animal: pick(rng, wrongAnimals), color: target.color };
+  if (canWrongRole && r < DECOY_RATIOS.rightRoleWrongKit + DECOY_RATIOS.rightKitWrongRole) {
+    return { kit: target.kit, role: pick(rng, wrongRoles), isRef: false };
   }
-  return { animal: pick(rng, wrongAnimals), color: pick(rng, pool.colors) };
+  return { kit: pick(rng, pool.kits), role: pick(rng, wrongRoles), isRef: false };
 }
 
 /** Choose what to spawn on a regular tick. */
@@ -80,11 +87,18 @@ export function chooseSpawn(
   pool: StagePool,
   target: ItemType,
   targetOnBoard: boolean,
+  refsUp: number,
 ): ItemType {
-  if (pool.mode === 'plain') return { animal: 'mole', color: 'none' };
+  if (pool.referee && refsUp < REFEREE.maxUp && rng() < REFEREE.chance) return { ...REF };
+  if (pool.mode === 'plain') return { ...PLAIN_MOLE };
   const chance = targetOnBoard ? TUNING.targetChanceSome : TUNING.targetChanceNone;
   if (rng() < chance) return { ...target };
   return makeDecoy(rng, pool, target);
+}
+
+/** Max moles up at once on a board of `holes`. There is always at least one empty hole. */
+export function maxUpFor(holes: number, factor: number): number {
+  return Math.max(1, Math.min(holes - 1, Math.ceil(holes * factor)));
 }
 
 /** Small deterministic RNG for tests and seeded runs. */

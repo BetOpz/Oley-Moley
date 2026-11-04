@@ -1,7 +1,7 @@
 // Every player-facing string lives here so it can be tweaked or localised.
-// Plain British English. "Olé" appears only in the title and the crowd's three cheers
+// Plain British English. "Olé" appears only in the title and the crowd's four cheers
 // (tests/strings.test.ts enforces this).
-import type { Animal, HatColor } from './config';
+import type { Kit, KitOrNone, Role, RoleOrNone } from './config';
 
 export const STR = {
   gameTitle: 'Olé Molé!',
@@ -9,37 +9,49 @@ export const STR = {
   ticketKicker: 'Matchday ticket',
   ticketFixture: 'Moles v Mallets',
   ticketGround: 'North Stand · Row M · Seat 1',
+  ticketChoose: 'Kick off in',
   ticketPlay: 'Play',
   ticketStubSub: 'Kick-off',
   ticketBest: (score: number) => `Best score ${score}`,
 
   score: 'Score',
+  division: 'Div',
   stage: 'Stage',
   lives: 'Lives',
+  cards: 'Cards',
   livesAria: (n: number, max: number) => `${n} of ${max} lives`,
+  cardsAria: (yellows: number) => (yellows ? `${yellows} yellow card` : 'No cards'),
   streak: (n: number) => `×${n} streak`,
   meterAria: 'Stage progress',
   mute: 'Sound on or off',
   colourToggle: 'Colour off (patterns only)',
 
-  introStageLine: (num: number, grid: number) => `Stage ${num} · ${grid} × ${grid}`,
+  introLine: (division: string, num: number, grid: number) => `${division} · Stage ${num} · ${grid} × ${grid}`,
   introGo: 'Play',
   nowLabel: 'NOW',
-  nextLabel: 'Next',
-  whackAny: 'WHACK ANY MOLE',
+  hitAny: 'HIT ANY MOLE',
+  notTheRef: 'NOT THE REF',
 
-  /** The crowd's three cheers, one per section of the stage progress meter. */
-  cheers: ['Olé!', 'Olé, olé!', 'Olé, olé, olé!'] as const,
+  /** The crowd's four cheers, one per section of the stage progress meter. */
+  cheers: ['Olé!', 'Olé, olé!', 'Olé, olé, olé!', 'Olé, olé, olé, olé!'] as const,
 
   messages: {
-    wrongHat: 'Wrong hat!',
-    wrongAnimal: 'Wrong one!',
+    wrongKit: 'Wrong kit!',
+    wrongRole: 'Wrong one!',
+    yellow: 'Yellow card!',
+    red: 'Red card!',
     escape: 'Got away!',
   },
 
+  promotedKicker: 'Promoted!',
+  promotedTitle: (division: string) => `Promoted to ${division}!`,
+  promotedBoard: (grid: number) => `New pitch: ${grid} × ${grid} holes`,
+  promotedGo: 'Kick off',
+
   fullTimeTitle: 'Full time',
   fullTimeScore: 'Score',
-  fullTimeStage: 'Stage reached',
+  fullTimeReached: 'Reached',
+  fullTimeReachedValue: (division: string, stage: string) => `${division}, ${stage}`,
   fullTimeBest: 'Best score',
   fullTimeNewBest: 'New best!',
   playAgain: 'Play again',
@@ -48,40 +60,49 @@ export const STR = {
   holeAria: (row: number, col: number, what: string | null) =>
     `Hole ${row + 1}, ${col + 1}${what ? `: ${what}` : ''}`,
 
-  colorName: {
+  kitName: {
     red: 'red',
     blue: 'blue',
     yellow: 'yellow',
     purple: 'purple',
-  } as Record<HatColor, string>,
+  } as Record<Kit, string>,
   patternName: {
     red: 'stripes',
-    blue: 'dots',
-    yellow: 'star',
-    purple: 'zigzag',
-  } as Record<HatColor, string>,
-  animalName: {
-    mole: 'mole',
-    rabbit: 'rabbit',
-    frog: 'frog',
-    fox: 'fox',
-  } as Record<Animal, string>,
+    blue: 'hoops',
+    yellow: 'sash',
+    purple: 'halves',
+  } as Record<Kit, string>,
+  roleName: {
+    player: 'player',
+    keeper: 'keeper',
+    fan: 'fan',
+  } as Record<Role, string>,
+  referee: 'referee',
+  mole: 'mole',
 
-  ruleAny: 'Whack any mole',
-  patternHint: (c: HatColor) => `${STR.patternName[c]} band`,
-  ruleHat: (c: HatColor) => `Hit ${STR.colorName[c]} hats`,
-  ruleAnimal: (a: Animal, c: HatColor) => `Hit the ${STR.animalName[a]} in ${STR.colorName[c]}`,
-  itemLabel: (a: Animal, c: HatColor | 'none') =>
-    c === 'none' ? STR.animalName[a] : `${STR.animalName[a]} in ${STR.colorName[c]} hat (${STR.patternName[c]})`,
+  ruleAny: 'Hit any mole',
+  ruleAnyRef: 'Hit any mole. Not the ref!',
+  ruleKit: (k: Kit) => `Hit ${STR.kitName[k]}`,
+  ruleRole: (k: Kit, r: Role) => `Hit the ${STR.kitName[k]} ${STR.roleName[r]}`,
+  patternHint: (k: Kit) => `${STR.patternName[k]}`,
+  itemLabel: (kit: KitOrNone, role: RoleOrNone, isRef: boolean) => {
+    if (isRef) return STR.referee;
+    if (kit === 'none') return STR.mole;
+    const r = role === 'none' ? STR.mole : STR.roleName[role];
+    return `${STR.kitName[kit]} ${r} (${STR.patternName[kit]})`;
+  },
 
+  divisions: ['Sunday League', 'Division Two', 'Division One', 'Top Flight'],
   stages: [
-    { title: 'Kick-off', rule: 'Whack any mole.' },
-    { title: 'More Holes', rule: 'Bigger pitch, quicker moles.' },
-    { title: 'Hats On', rule: 'Only whack the hat colour on the NOW panel.' },
-    { title: 'Full Kit', rule: 'All four hat colours.' },
-    { title: 'Mascots', rule: 'Other animals join. Match the animal and the hat.' },
-    { title: 'Cup Final', rule: '5 × 5, every animal, every hat.' },
+    { title: 'Warm-up', rule: 'Hit any mole.' },
+    { title: 'Watch the Ref', rule: 'Hit any mole, but never the referee in black.' },
+    { title: 'Home & Away', rule: 'Hit only the kit on the NOW board. Red or blue.' },
+    { title: 'Three Teams', rule: 'Yellow joins in.' },
+    { title: 'All Four Kits', rule: 'Purple joins in.' },
+    { title: 'The Squad', rule: 'Match the kit and the role: player, keeper or fan.' },
+    { title: 'Cup Tie', rule: 'All four kits, all three roles.' },
   ],
   extraTimeTitle: (n: number) => `Extra Time ${n}`,
+  extraTimeShort: (n: number) => `ET${n}`,
   extraTimeRule: 'Same again, only faster.',
 };

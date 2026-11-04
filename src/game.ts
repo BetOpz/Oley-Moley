@@ -1,7 +1,7 @@
 // Pure game state + rules. No DOM. Time is a game clock advanced by tick().
-import { ENCORE, OLE_SECTIONS, STAGES, TUNING } from './config';
-import type { ItemType, Mode, StageDef } from './config';
-import { between, chooseSpawn, matches, pick, poolFor, randomTarget } from './spawner';
+import { DIVISIONS, EXTRA_TIME, OLE_SECTIONS, REFEREE, STAGES, TUNING } from './config';
+import type { ItemType, StageDef } from './config';
+import { PLAIN_MOLE, between, chooseSpawn, matches, maxUpFor, pick, poolFor, randomTarget } from './spawner';
 import type { Rng, StagePool } from './spawner';
 
 export { matches } from './spawner';
@@ -22,30 +22,43 @@ export interface Critter {
   clearAt: number;
 }
 
+export const STAGES_PER_DIVISION = STAGES.length;
+export const MAIN_STAGES = DIVISIONS.length * STAGES_PER_DIVISION;
+
 export interface Stage extends StageDef {
-  /** 0-based index into the run (stage 7 = index 6 = Extra Time 1). */
+  /** 0-based index into the run: 0…27 for the main run, 28+ for Extra Time. */
   index: number;
-  /** 1-based stage number used for scoring and display. */
+  /** 1-based division number (1 = Sunday League … 4 = Top Flight). */
+  division: number;
+  /** 1-based stage number within the division (1…7). */
   number: number;
-  /** 0 for the main stages, 1, 2, 3… for encore loops. */
+  /** 0 in the main run, then 1, 2, 3… for Extra Time loops. */
   encore: number;
+  grid: number;
+  goal: number;
+  maxUp: number;
 }
 
-/** Olé meter section reached: 1 = "Olé!", 2 = "Olé, olé!", 3 = "Olé, olé, olé!" (stage clear). */
-export type OleLevel = 1 | 2 | 3;
-export type WrongKind = 'hat' | 'animal';
+/**
+ * Olé meter section reached: 1 = "Olé!", 2 = "Olé, olé!", 3 = "Olé, olé, olé!",
+ * 4 = "Olé, olé, olé, olé!" (stage clear).
+ */
+export type OleLevel = 1 | 2 | 3 | 4;
+export type WrongKind = 'kit' | 'role';
+export type Card = 'yellow' | 'red';
 
 export type GameEvent =
   | { type: 'spawn'; critter: Critter }
   | { type: 'hit'; critter: Critter; points: number; streak: number; ole: OleLevel | null }
   | { type: 'wrong'; critter: Critter; kind: WrongKind }
+  | { type: 'ref'; critter: Critter; card: Card; yellows: number }
   | { type: 'miss'; hole: number }
   | { type: 'escape'; critter: Critter }
   | { type: 'sink'; critter: Critter }
   | { type: 'clear'; critter: Critter }
   | { type: 'queue' }
   | { type: 'lives'; lives: number }
-  | { type: 'stageClear'; stage: Stage }
+  | { type: 'stageClear'; stage: Stage; promoted: boolean }
   | { type: 'gameOver' };
 
 export interface GameState {
@@ -59,6 +72,8 @@ export interface GameState {
   streak: number;
   bestStreak: number;
   progress: number;
+  /** Yellow cards this stage (reset when they become a red, and at each stage). */
+  yellows: number;
   queue: ItemType[];
   critters: Critter[];
   nextSpawnAt: number;
@@ -66,18 +81,30 @@ export interface GameState {
   nextId: number;
 }
 
+/** Run index for division d (1-based) and stage s (1-based). */
+export function runIndex(division: number, stage = 1): number {
+  return (division - 1) * STAGES_PER_DIVISION + (stage - 1);
+}
+
 export function getStage(index: number): Stage {
-  const last = STAGES.length - 1;
-  if (index <= last) return { ...STAGES[index], index, number: index + 1, encore: 0 };
-  const encore = index - last;
-  const base = STAGES[last];
+  const encore = Math.max(0, index - (MAIN_STAGES - 1));
+  const capped = Math.min(index, MAIN_STAGES - 1);
+  const d = Math.floor(capped / STAGES_PER_DIVISION);
+  const s = capped % STAGES_PER_DIVISION;
+  const div = DIVISIONS[d];
+  const base = STAGES[s];
+  const holes = div.grid * div.grid;
   return {
     ...base,
-    spawnMs: base.spawnMs * Math.pow(ENCORE.spawnMul, encore),
-    upMs: base.upMs * Math.pow(ENCORE.upMul, encore),
+    spawnMs: base.spawnMs * div.spawnMul * Math.pow(EXTRA_TIME.spawnMul, encore),
+    upMs: base.upMs * div.upMul * Math.pow(EXTRA_TIME.upMul, encore),
     index,
-    number: index + 1,
+    division: d + 1,
+    number: s + 1,
     encore,
+    grid: div.grid,
+    goal: div.goal,
+    maxUp: maxUpFor(holes, base.maxUpFactor),
   };
 }
 
@@ -86,17 +113,18 @@ export function holeCount(g: GameState): number {
 }
 
 export function target(g: GameState): ItemType {
-  return g.queue[0] ?? { animal: 'mole', color: 'none' };
+  return g.queue[0] ?? { ...PLAIN_MOLE };
 }
 
-export function pointsFor(stageNumber: number, streak: number): number {
+export function pointsFor(division: number, stageNumber: number, streak: number): number {
   return (
-    TUNING.basePoints * stageNumber +
+    TUNING.divisionPoints * division +
+    TUNING.stagePoints * stageNumber +
     Math.min(Math.max(streak - 1, 0), TUNING.comboCap) * TUNING.comboStep
   );
 }
 
-/** Hits needed to reach each Olé meter section: ceil(goal × 1/3), ceil(goal × 2/3), goal. */
+/** Hits needed to reach each Olé meter section: ceil(goal × k/4) for k = 1…3, then goal. */
 export function oleThresholds(goal: number): number[] {
   const t: number[] = [];
   for (let k = 1; k < OLE_SECTIONS; k++) t.push(Math.ceil((goal * k) / OLE_SECTIONS));
@@ -121,8 +149,9 @@ function buildQueue(rng: Rng, pool: StagePool): ItemType[] {
 
 function setStage(g: GameState, index: number): void {
   g.stage = getStage(index);
-  g.pool = poolFor(g.stage.mode, g.stage.colors, g.stage.animals);
+  g.pool = poolFor(g.stage.mode, g.stage.kits, g.stage.roles, g.stage.referee);
   g.progress = 0;
+  g.yellows = 0;
   g.critters = [];
   g.queue = buildQueue(g.rng, g.pool);
 }
@@ -134,12 +163,13 @@ export function createGame(rng: Rng = Math.random): GameState {
     rng,
     time: 0,
     stage,
-    pool: poolFor(stage.mode, stage.colors, stage.animals),
+    pool: poolFor(stage.mode, stage.kits, stage.roles, stage.referee),
     score: 0,
     lives: TUNING.startLives,
     streak: 0,
     bestStreak: 0,
     progress: 0,
+    yellows: 0,
     queue: [],
     critters: [],
     nextSpawnAt: 0,
@@ -148,7 +178,7 @@ export function createGame(rng: Rng = Math.random): GameState {
   };
 }
 
-/** Reset for a fresh run at stage 1, showing its intro. */
+/** Reset for a fresh run at stage 1 of `division` (or any run index), showing its intro. */
 export function startRun(g: GameState, startIndex = 0): void {
   g.score = 0;
   g.lives = TUNING.startLives;
@@ -166,10 +196,17 @@ export function beginStage(g: GameState): void {
   g.lastTargetAt = g.time;
 }
 
-/** After a stage clear: move to the next stage, regain a life, show its intro. */
+/**
+ * After a stage clear: move to the next stage and show its intro. A new division resets lives
+ * to 5; otherwise one life comes back (max 5).
+ */
 export function nextStage(g: GameState): void {
-  g.lives = Math.min(TUNING.maxLives, g.lives + 1);
+  const before = g.stage.division;
   setStage(g, g.stage.index + 1);
+  g.lives =
+    g.stage.division !== before && g.stage.encore === 0
+      ? TUNING.startLives
+      : Math.min(TUNING.maxLives, g.lives + 1);
   g.phase = 'intro';
 }
 
@@ -188,8 +225,12 @@ function freeHoles(g: GameState): number[] {
   return free;
 }
 
-function upCount(g: GameState): number {
+export function upCount(g: GameState): number {
   return g.critters.filter((c) => c.state === 'up').length;
+}
+
+export function refsUp(g: GameState): number {
+  return g.critters.filter((c) => c.state === 'up' && c.item.isRef).length;
 }
 
 function spawn(g: GameState, item: ItemType, events: GameEvent[]): boolean {
@@ -247,12 +288,12 @@ export function tick(g: GameState, dt: number): GameEvent[] {
     }
   }
 
-  const mode: Mode = g.stage.mode;
   const hasTarget = targetOnBoard(g);
   if (hasTarget) g.lastTargetAt = t;
 
-  // Keep a target on screen: if none has been up for a while, force one in.
-  if (!hasTarget && t - g.lastTargetAt >= TUNING.forceTargetAfterMs) {
+  // Keep a target on screen: if none has been up for a while, force one in, as long as that
+  // still leaves an empty hole.
+  if (!hasTarget && t - g.lastTargetAt >= TUNING.forceTargetAfterMs && freeHoles(g).length >= 2) {
     if (spawn(g, { ...target(g) }, events)) g.lastTargetAt = t;
   }
 
@@ -260,9 +301,9 @@ export function tick(g: GameState, dt: number): GameEvent[] {
     const [lo, hi] = TUNING.spawnJitter;
     g.nextSpawnAt = t + g.stage.spawnMs * between(g.rng, lo, hi);
     if (upCount(g) < g.stage.maxUp) {
-      const item = chooseSpawn(g.rng, g.pool, target(g), targetOnBoard(g));
+      const item = chooseSpawn(g.rng, g.pool, target(g), targetOnBoard(g), refsUp(g));
       spawn(g, item, events);
-      if (mode !== 'plain' && isTarget(g, item)) g.lastTargetAt = t;
+      if (isTarget(g, item)) g.lastTargetAt = t;
     }
   }
   return events;
@@ -281,10 +322,23 @@ export function whack(g: GameState, hole: number): GameEvent[] {
   c.sinkAt = g.time + TUNING.bonkMs;
   const tgt = target(g);
 
+  if (c.item.isRef) {
+    g.streak = 0;
+    g.yellows += 1;
+    if (g.yellows >= REFEREE.yellowsForRed) {
+      g.yellows = 0;
+      events.push({ type: 'ref', critter: c, card: 'red', yellows: 0 });
+      loseLife(g, events);
+    } else {
+      events.push({ type: 'ref', critter: c, card: 'yellow', yellows: g.yellows });
+    }
+    return events;
+  }
+
   if (matches(c.item, tgt, g.stage.mode)) {
     g.streak += 1;
     g.bestStreak = Math.max(g.bestStreak, g.streak);
-    const points = pointsFor(g.stage.number, g.streak);
+    const points = pointsFor(g.stage.division, g.stage.number, g.streak);
     g.score += points;
     g.progress += 1;
     events.push({ type: 'hit', critter: c, points, streak: g.streak, ole: oleFor(g.progress, g.stage.goal) });
@@ -296,11 +350,12 @@ export function whack(g: GameState, hole: number): GameEvent[] {
     if (g.progress >= g.stage.goal) {
       g.phase = 'clear';
       g.critters = [];
-      events.push({ type: 'stageClear', stage: g.stage });
+      const promoted = g.stage.number === STAGES_PER_DIVISION && g.stage.division < DIVISIONS.length;
+      events.push({ type: 'stageClear', stage: g.stage, promoted });
     }
   } else {
     const kind: WrongKind =
-      g.stage.mode === 'animal' && c.item.animal !== tgt.animal ? 'animal' : 'hat';
+      g.stage.mode === 'role' && c.item.kit === tgt.kit && c.item.role !== tgt.role ? 'role' : 'kit';
     events.push({ type: 'wrong', critter: c, kind });
     loseLife(g, events);
   }

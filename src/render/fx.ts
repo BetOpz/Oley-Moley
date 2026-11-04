@@ -1,6 +1,7 @@
 // Text pops, floating points, confetti and the shake.
 import { el } from './board';
 import type { Point } from './board';
+import { cardSvg } from './art';
 
 const CONFETTI = ['#d62b36', '#f4c430', '#2f6fd6', '#ffffff', '#7b3fa8', '#3f9b4a'];
 
@@ -16,7 +17,7 @@ function removeLater(node: Element, ms: number): void {
   window.setTimeout(() => node.remove(), ms);
 }
 
-export type PopTone = 'cheer1' | 'cheer2' | 'cheer3' | 'oops';
+export type PopTone = 'cheer1' | 'cheer2' | 'cheer3' | 'cheer4' | 'oops' | 'yellow' | 'red';
 
 export class Fx {
   constructor(
@@ -42,6 +43,16 @@ export class Fx {
     p.style.top = `${at.y}px`;
     this.layer.append(p);
     removeLater(p, 900);
+  }
+
+  /** A yellow or red card held up over the referee. */
+  card(at: Point, card: 'yellow' | 'red'): void {
+    const c = el('div', `ref-card ref-card-${card}`);
+    c.innerHTML = cardSvg(card);
+    c.style.left = `${at.x}px`;
+    c.style.top = `${at.y}px`;
+    this.layer.append(c);
+    removeLater(c, 900);
   }
 
   shake(): void {

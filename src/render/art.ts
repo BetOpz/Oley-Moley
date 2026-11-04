@@ -1,11 +1,20 @@
 // Inline SVG art, generated in code. No external images.
 import { PALETTE } from '../config';
-import type { Animal, Color, HatColor, ItemType, Mode } from '../config';
+import type { ItemType, Kit, Mode, Role } from '../config';
 
 const INK = PALETTE.ink;
 const WHITE = PALETTE.white;
+const GLOVE = '#b8f04a';
+const GLOVE_DARK = '#5f8f1c';
 
 export type Side = 'top' | 'right' | 'bottom' | 'left';
+
+let uidCounter = 0;
+/** Ids for clip paths must be unique across every inline SVG on the page. */
+function uid(prefix: string): string {
+  uidCounter += 1;
+  return `${prefix}${uidCounter}`;
+}
 
 export function starPath(cx: number, cy: number, r: number, inner: number, points = 5): string {
   let d = '';
@@ -17,223 +26,289 @@ export function starPath(cx: number, cy: number, r: number, inner: number, point
   return d + 'Z';
 }
 
-/** Foreground colour for patterns drawn on a hat colour. */
-function fgFor(color: HatColor): string {
-  return color === 'yellow' ? INK : WHITE;
-}
+// ---------------------------------------------------------------- kit patterns
 
-// ---------------------------------------------------------------- bobble hats
+/** The second colour of each kit: white for all but yellow, whose sash is dark. */
+export function kitSecond(kit: Kit): string {
+  return kit === 'yellow' ? PALETTE.sash : WHITE;
+}
 
 /**
- * The colour-blind key: a band pattern per colour, drawn inside the box (x, y, w, h).
- * Red = horizontal stripes, blue = dots, yellow = star, purple = zigzag.
+ * A kit's colour and shirt pattern filling the box (0, 0, w, h). The caller clips it.
+ * Patterns keep their screen orientation everywhere, so they can be told apart in greyscale:
+ * red = vertical stripes, blue = horizontal hoops, yellow = diagonal sash, purple = halves.
+ * `unit` is the stripe/hoop width; `single` draws one sash (a shirt) instead of a repeat.
  */
-function bandPattern(color: HatColor, x: number, y: number, w: number, h: number, fg: string): string {
-  switch (color) {
-    case 'red': {
-      const t = h * 0.2;
-      return `<rect x="${x}" y="${y + h * 0.18}" width="${w}" height="${t}" fill="${fg}"/><rect x="${x}" y="${y + h * 0.62}" width="${w}" height="${t}" fill="${fg}"/>`;
+export function kitFill(kit: Kit, w: number, h: number, unit: number, single = false): string {
+  const base = PALETTE.kits[kit];
+  const fg = kitSecond(kit);
+  let out = `<rect width="${w}" height="${h}" fill="${base}"/>`;
+  switch (kit) {
+    case 'red':
+      for (let x = unit * 0.5; x < w; x += unit * 2) out += `<rect x="${x.toFixed(2)}" y="0" width="${unit}" height="${h}" fill="${fg}"/>`;
+      break;
+    case 'blue':
+      for (let y = unit * 0.5; y < h; y += unit * 2) out += `<rect x="0" y="${y.toFixed(2)}" width="${w}" height="${unit}" fill="${fg}"/>`;
+      break;
+    case 'yellow': {
+      const bw = unit * 1.6;
+      if (single) {
+        out += `<line x1="${-h * 0.1}" y1="${-h * 0.1}" x2="${w + h * 0.1}" y2="${h * 1.1}" stroke="${fg}" stroke-width="${bw}"/>`;
+      } else {
+        const p = Math.min(w, h) * 2.5;
+        for (let c = -h; c < w + h; c += p)
+          out += `<line x1="${c - 4}" y1="-4" x2="${c + h + 4}" y2="${h + 4}" stroke="${fg}" stroke-width="${bw}"/>`;
+      }
+      break;
     }
-    case 'blue': {
-      const n = Math.max(2, Math.round(w / (h * 1.3)));
-      const r = h * 0.2;
-      let out = '';
-      for (let i = 0; i < n; i++) out += `<circle cx="${x + (w * (i + 0.5)) / n}" cy="${y + h / 2}" r="${r}" fill="${fg}"/>`;
-      return out;
-    }
-    case 'yellow':
-      return `<path d="${starPath(x + w / 2, y + h / 2 + h * 0.03, h * 0.44, h * 0.19)}" fill="${fg}"/>`;
-    case 'purple': {
-      const n = Math.max(3, Math.round(w / (h * 0.55)));
-      const pts: string[] = [];
-      for (let i = 0; i <= n; i++) pts.push(`${x + (w * i) / n},${y + (i % 2 ? h * 0.25 : h * 0.75)}`);
-      return `<polyline points="${pts.join(' ')}" fill="none" stroke="${fg}" stroke-width="${h * 0.16}" stroke-linejoin="round" stroke-linecap="round"/>`;
-    }
+    case 'purple':
+      if (single || h > w) out += `<rect x="${w / 2}" y="0" width="${w / 2}" height="${h}" fill="${fg}"/>`;
+      else {
+        const p = h * 2.2;
+        for (let x = p / 2; x < w; x += p) out += `<rect x="${x}" y="0" width="${p / 2}" height="${h}" fill="${fg}"/>`;
+      }
+      break;
   }
+  return out;
 }
 
-/** A knitted bobble hat. (x, y) is the bottom centre of the cuff. */
-export function hatSvg(color: Color, x: number, y: number, scale = 1): string {
-  if (color === 'none') return '';
-  const fill = PALETTE.hats[color];
-  const dark = PALETTE.hatsDark[color];
-  return `<g class="hat" transform="translate(${x} ${y}) scale(${scale})">
-    <circle cx="0" cy="-33" r="6.5" fill="${WHITE}" stroke="${INK}" stroke-width="2.2"/>
-    <path d="M-19,-10 C-20,-33 20,-33 19,-10Z" fill="${fill}" stroke="${INK}" stroke-width="2.2" stroke-linejoin="round"/>
-    <path d="M-9,-11 Q-10,-22 -6,-26.5 M0,-11 L0,-27.5 M9,-11 Q10,-22 6,-26.5" fill="none" stroke="${dark}" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>
-    <rect x="-22" y="-12" width="44" height="12" rx="3.5" fill="${dark}"/>
-    <svg x="-22" y="-12" width="44" height="12" overflow="hidden">${bandPattern(color, 0, 0, 44, 12, fgFor(color))}</svg>
-    <rect x="-22" y="-12" width="44" height="12" rx="3.5" fill="none" stroke="${INK}" stroke-width="2.2"/>
+/** kitFill clipped to a rectangle at (x, y) with a nested <svg> (no ids needed). */
+function kitBox(kit: Kit, x: number, y: number, w: number, h: number, unit: number, single = false): string {
+  return `<svg x="${x}" y="${y}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" overflow="hidden">${kitFill(kit, w, h, unit, single)}</svg>`;
+}
+
+// ---------------------------------------------------------------- props
+
+export function footballInner(cx: number, cy: number, r: number): string {
+  const pent = (px: number, py: number, pr: number, rot: number) => {
+    let d = '';
+    for (let i = 0; i < 5; i++) {
+      const a = ((rot + i * 72) * Math.PI) / 180;
+      d += `${i ? 'L' : 'M'}${(px + pr * Math.cos(a)).toFixed(2)},${(py + pr * Math.sin(a)).toFixed(2)}`;
+    }
+    return `<path d="${d}Z" fill="${INK}"/>`;
+  };
+  const s = r / 10.5;
+  const id = uid('fb');
+  return `<g transform="translate(${cx - 12 * s} ${cy - 12 * s}) scale(${s})">
+    <circle cx="12" cy="12" r="10.5" fill="${WHITE}" stroke="${INK}" stroke-width="${1.6 / Math.max(s, 0.6)}"/>
+    ${pent(12, 12, 4, -90)}
+    <path d="M12,8 L12,3.5 M15.8,10.8 L20,9.3 M14.4,15.2 L17,19 M9.6,15.2 L7,19 M8.2,10.8 L4,9.3" stroke="${INK}" stroke-width="1.2"/>
+    <clipPath id="${id}"><circle cx="12" cy="12" r="10"/></clipPath>
+    <g clip-path="url(#${id})">${pent(12, 0.6, 3.2, 90)}${pent(22.8, 8.6, 3.2, 162)}${pent(18.8, 21.4, 3.2, 234)}${pent(5.2, 21.4, 3.2, 306)}${pent(1.2, 8.6, 3.2, 18)}</g>
   </g>`;
 }
 
-// ---------------------------------------------------------------- mascots
-
-interface AnimalArt {
-  /** Drawn behind the head (ears). */
-  back: string;
-  body: string;
-  eyes: [number, number][];
-  eyeR: number;
-  hat: { x: number; y: number; s: number };
+/** A big keeper's glove, palm out, centred at (x, y). `flip` mirrors it for the right hand. */
+function glove(x: number, y: number, s: number, flip: boolean): string {
+  return `<g transform="translate(${x} ${y}) scale(${flip ? -s : s} ${s}) rotate(-12)">
+    <path d="M-9,12 L-9,-2 Q-13,-6 -12,-10 Q-11,-13 -7,-9 L-7,-15 Q-7,-19 -4,-19 Q-1,-19 -1,-15 L-1,-17 Q-1,-21 2,-21 Q5,-21 5,-17 L5,-15 Q5,-19 8,-19 Q11,-19 11,-15 L11,12 Z"
+      fill="${GLOVE}" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M-1,-13 L-1,0 M5,-13 L5,0" stroke="${GLOVE_DARK}" stroke-width="1.6" stroke-linecap="round"/>
+    <rect x="-10" y="6" width="22" height="9" rx="2.5" fill="${WHITE}" stroke="${INK}" stroke-width="2.2"/>
+  </g>`;
 }
+
+/** A furry arm from (x1, y1) to (x2, y2) with a paw. */
+function arm(x1: number, y1: number, x2: number, y2: number, paw = true): string {
+  return `<path d="M${x1},${y1} L${x2},${y2}" stroke="${INK}" stroke-width="10" stroke-linecap="round"/>
+    <path d="M${x1},${y1} L${x2},${y2}" stroke="${PALETTE.mole}" stroke-width="6" stroke-linecap="round"/>
+    ${paw ? `<circle cx="${x2}" cy="${y2}" r="5.2" fill="#f2a6b3" stroke="${INK}" stroke-width="2"/>` : ''}`;
+}
+
+/** A supporter's scarf held up flat, in the kit's colours, with fringes. */
+function scarf(kit: Kit, x: number, y: number, w: number, h: number): string {
+  const n = 6;
+  const bw = w / n;
+  let blocks = '';
+  for (let i = 0; i < n; i++) {
+    const fill = i % 2 === 0 ? PALETTE.kits[kit] : kitSecond(kit);
+    blocks += `<rect x="${(x + i * bw).toFixed(2)}" y="${y}" width="${bw.toFixed(2)}" height="${h}" fill="${fill}"/>`;
+  }
+  let fringe = '';
+  for (let i = 0; i < 4; i++) {
+    const fy = y + 2 + (i * (h - 4)) / 3;
+    fringe += `<path d="M${x},${fy} l-5,0 M${x + w},${fy} l5,0" stroke="${INK}" stroke-width="1.8" stroke-linecap="round"/>`;
+  }
+  return `${fringe}${blocks}<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="${INK}" stroke-width="2.4" rx="1.5"/>`;
+}
+
+// ---------------------------------------------------------------- moles
+
+// The mole, in a 100 × 100 box. The body runs off the bottom (hidden by the turf lip).
+const BODY = { cx: 50, cy: 67, rx: 30, ry: 40 };
+const SHIRT_TOP = 69;
 
 function blush(x: number, y: number): string {
   return `<ellipse cx="${x}" cy="${y}" rx="5" ry="3" fill="#ff8a9a" opacity=".5"/>`;
 }
 
-function eyeDots(eyes: [number, number][], r: number, white = false): string {
-  return eyes
-    .map(([x, y]) =>
-      (white ? `<ellipse cx="${x}" cy="${y}" rx="${r * 1.7}" ry="${r * 1.9}" fill="#fff" stroke="${INK}" stroke-width="2"/>` : '') +
-      `<ellipse cx="${x}" cy="${y + (white ? 1 : 0)}" rx="${r}" ry="${r * 1.2}" fill="${INK}"/>` +
-      `<circle cx="${x - r * 0.35}" cy="${y - r * 0.4 + (white ? 1 : 0)}" r="${r * 0.38}" fill="#fff"/>`,
-    )
-    .join('');
+const EYES: [number, number][] = [[41, 46], [59, 46]];
+const EYE_R = 3.3;
+
+function eyeDots(): string {
+  return EYES.map(
+    ([x, y]) =>
+      `<ellipse cx="${x}" cy="${y}" rx="${EYE_R}" ry="${EYE_R * 1.2}" fill="${INK}"/><circle cx="${x - 1.1}" cy="${y - 1.3}" r="1.25" fill="#fff"/>`,
+  ).join('');
 }
 
-const ART: Record<Animal, () => AnimalArt> = {
-  mole: () => ({
-    back: '',
-    body: `
-      <ellipse cx="50" cy="80" rx="31" ry="42" fill="#7a4a2b" stroke="${INK}" stroke-width="3"/>
-      <ellipse cx="50" cy="100" rx="20" ry="20" fill="#c99a6c"/>
-      <ellipse cx="31" cy="93" rx="7" ry="5" fill="#f2a6b3" stroke="${INK}" stroke-width="2"/>
-      <ellipse cx="69" cy="93" rx="7" ry="5" fill="#f2a6b3" stroke="${INK}" stroke-width="2"/>
-      ${blush(35, 72)}${blush(65, 72)}
-      <g stroke="${INK}" stroke-width="1.4" stroke-linecap="round">
-        <line x1="38" y1="74" x2="24" y2="71"/><line x1="38" y1="77" x2="24" y2="79"/>
-        <line x1="62" y1="74" x2="76" y2="71"/><line x1="62" y1="77" x2="76" y2="79"/>
-      </g>
-      <ellipse cx="50" cy="72" rx="7.5" ry="5.6" fill="#f48fa6" stroke="${INK}" stroke-width="2"/>
-      <path d="M45,81 Q50,85 55,81" fill="none" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>`,
-    eyes: [[41, 61], [59, 61]],
-    eyeR: 3.2,
-    hat: { x: 50, y: 50, s: 1.0 },
-  }),
-  rabbit: () => ({
-    back: `
-      <g transform="rotate(-14 40 52)">
-        <ellipse cx="40" cy="24" rx="8.5" ry="25" fill="#d9d9df" stroke="${INK}" stroke-width="3"/>
-        <ellipse cx="40" cy="26" rx="4" ry="17" fill="#f6b5c3"/>
-      </g>
-      <g transform="rotate(14 60 52)">
-        <ellipse cx="60" cy="24" rx="8.5" ry="25" fill="#d9d9df" stroke="${INK}" stroke-width="3"/>
-        <ellipse cx="60" cy="26" rx="4" ry="17" fill="#f6b5c3"/>
-      </g>`,
-    body: `
-      <ellipse cx="50" cy="80" rx="29" ry="38" fill="#d9d9df" stroke="${INK}" stroke-width="3"/>
-      <ellipse cx="50" cy="100" rx="18" ry="16" fill="#f3f3f6"/>
-      ${blush(34, 76)}${blush(66, 76)}
-      <rect x="45.6" y="79" width="4.2" height="7" rx="1" fill="#fff" stroke="${INK}" stroke-width="1.6"/>
-      <rect x="50.2" y="79" width="4.2" height="7" rx="1" fill="#fff" stroke="${INK}" stroke-width="1.6"/>
-      <path d="M44,77 Q47,80 50,77 Q53,80 56,77" fill="none" stroke="${INK}" stroke-width="1.8" stroke-linecap="round"/>
-      <path d="M46.5,72 L53.5,72 L50,76Z" fill="#f48fa6" stroke="${INK}" stroke-width="1.6" stroke-linejoin="round"/>`,
-    eyes: [[40, 65], [60, 65]],
-    eyeR: 3.2,
-    hat: { x: 50, y: 53, s: 0.78 },
-  }),
-  frog: () => ({
-    back: '',
-    body: `
-      <circle cx="27" cy="56" r="13" fill="#5cbf55" stroke="${INK}" stroke-width="3"/>
-      <circle cx="73" cy="56" r="13" fill="#5cbf55" stroke="${INK}" stroke-width="3"/>
-      <ellipse cx="50" cy="82" rx="39" ry="30" fill="#5cbf55" stroke="${INK}" stroke-width="3"/>
-      <path d="M16,64 Q27,48 38,64Z M62,64 Q73,48 84,64Z" fill="#5cbf55"/>
-      <ellipse cx="50" cy="104" rx="25" ry="15" fill="#c4eba5"/>
-      ${blush(25, 82)}${blush(75, 82)}
-      <circle cx="44" cy="74" r="1.4" fill="${INK}"/><circle cx="56" cy="74" r="1.4" fill="${INK}"/>
-      <path d="M24,82 Q50,102 76,82" fill="none" stroke="${INK}" stroke-width="2.6" stroke-linecap="round"/>`,
-    eyes: [[27, 55], [73, 55]],
-    eyeR: 4,
-    hat: { x: 50, y: 61, s: 0.6 },
-  }),
-  fox: () => ({
-    back: `
-      <path d="M20,64 L25,22 L48,50Z" fill="#e8742a" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
-      <path d="M26,56 L28,32 L41,49Z" fill="#3a2318"/>
-      <path d="M80,64 L75,22 L52,50Z" fill="#e8742a" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
-      <path d="M74,56 L72,32 L59,49Z" fill="#3a2318"/>`,
-    body: `
-      <ellipse cx="50" cy="80" rx="32" ry="36" fill="#e8742a" stroke="${INK}" stroke-width="3"/>
-      <path d="M19,80 Q30,74 40,82 Q50,90 60,82 Q70,74 81,80 Q76,112 50,114 Q24,112 19,80Z" fill="#fff7ee"/>
-      <path d="M19,80 Q30,74 40,82 Q50,90 60,82 Q70,74 81,80" fill="none" stroke="${INK}" stroke-width="1.6" opacity=".35"/>
-      ${blush(30, 80)}${blush(70, 80)}
-      <ellipse cx="50" cy="86" rx="5.5" ry="4" fill="${INK}"/>
-      <path d="M44,93 Q50,97 56,93" fill="none" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>`,
-    eyes: [[39, 70], [61, 70]],
-    eyeR: 3.4,
-    hat: { x: 50, y: 52, s: 0.72 },
-  }),
-};
-
-function dazedEyes(eyes: [number, number][], r: number): string {
-  const s = r * 1.1;
-  return eyes
-    .map(
-      ([x, y]) =>
-        `<path d="M${x - s},${y - s} L${x + s},${y + s} M${x + s},${y - s} L${x - s},${y + s}" stroke="${INK}" stroke-width="2.4" stroke-linecap="round"/>`,
-    )
-    .join('');
+function dazedEyes(): string {
+  const s = EYE_R * 1.1;
+  return EYES.map(
+    ([x, y]) =>
+      `<path d="M${x - s},${y - s} L${x + s},${y + s} M${x + s},${y - s} L${x - s},${y + s}" stroke="${INK}" stroke-width="2.4" stroke-linecap="round"/>`,
+  ).join('');
 }
 
-/** The inner content (0…100 coords) of a mascot with its hat. `daze` adds the hidden dizzy eyes. */
-export function critterInner(item: ItemType, daze = true): string {
-  const a = ART[item.animal]();
-  const whites = item.animal === 'frog';
-  return `${a.back}${a.body}
-    <g class="eyes">${eyeDots(a.eyes, a.eyeR, whites)}</g>
-    ${daze ? `<g class="eyes-daze">${dazedEyes(a.eyes, a.eyeR)}</g>` : ''}
-    ${hatSvg(item.color, a.hat.x, a.hat.y, a.hat.s)}`;
+/** The shirt: the lower part of the body, filled with the kit (or the referee's black). */
+function shirt(kit: Kit | 'ref'): string {
+  const dy = SHIRT_TOP - BODY.cy;
+  const hw = BODY.rx * Math.sqrt(1 - (dy / BODY.ry) ** 2);
+  const x1 = (BODY.cx - hw).toFixed(2);
+  const x2 = (BODY.cx + hw).toFixed(2);
+  const d = `M${x1},${SHIRT_TOP} A${BODY.rx},${BODY.ry} 0 0 0 ${x2},${SHIRT_TOP} Z`;
+  const id = uid('sh');
+  const top = SHIRT_TOP;
+  const w = BODY.rx * 2;
+  const h = BODY.cy + BODY.ry - top;
+  const fill =
+    kit === 'ref'
+      ? `<rect x="${BODY.cx - BODY.rx}" y="${top}" width="${w}" height="${h}" fill="${PALETTE.ref}"/>`
+      : `<g transform="translate(${BODY.cx - BODY.rx} ${top})">${kitFill(kit, w, h, 6.5, true)}</g>`;
+  const collar =
+    kit === 'ref'
+      ? `<path d="M39,${top + 0.5} Q50,${top + 9} 61,${top + 0.5}" fill="none" stroke="#3b3f4a" stroke-width="3"/>`
+      : `<path d="M39,${top + 0.5} Q50,${top + 9} 61,${top + 0.5}" fill="none" stroke="${kit === 'yellow' ? PALETTE.sash : WHITE}" stroke-width="3.2"/>
+         <path d="M39,${top + 0.5} Q50,${top + 9} 61,${top + 0.5}" fill="none" stroke="${INK}" stroke-width="1" opacity=".5"/>`;
+  return `<clipPath id="${id}"><path d="${d}"/></clipPath>
+    <g clip-path="url(#${id})">${fill}</g>
+    <path d="M${x1},${top} L${x2},${top}" stroke="${INK}" stroke-width="2.2"/>
+    ${collar}`;
 }
 
-export function critterSvg(item: ItemType): string {
-  return `<svg class="critter-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${critterInner(item)}</svg>`;
+function whistle(): string {
+  return `<path d="M41,${SHIRT_TOP + 2} Q46,${SHIRT_TOP + 14} 55,${SHIRT_TOP + 13}" fill="none" stroke="${WHITE}" stroke-width="1.8"/>
+    <path d="M59,${SHIRT_TOP + 2} Q58,${SHIRT_TOP + 10} 55,${SHIRT_TOP + 13}" fill="none" stroke="${WHITE}" stroke-width="1.8"/>
+    <g transform="translate(55 ${SHIRT_TOP + 13})">
+      <path d="M-1,-4 L11,-4 L11,1 L7,1 A5.5,5.5 0 1 1 -1,-1 Z" fill="#d8dde6" stroke="${INK}" stroke-width="1.8" stroke-linejoin="round"/>
+      <circle cx="2.6" cy="2" r="1.8" fill="${INK}"/>
+    </g>`;
 }
 
-/** Just the target's icon: a hat in hat stages, the mascot in its hat in animal stages. */
-function iconInner(item: ItemType, mode: Mode, x: number, y: number, size: number): string {
-  if (mode === 'hat' && item.color !== 'none') {
-    const s = size / 52;
-    return `<g transform="translate(${x + size / 2} ${y + size * 0.86}) scale(${s})">${hatSvg(item.color, 0, 0, 1)}</g>`;
+/** The inner content (0…100 coords) of a mole. `daze` adds the hidden dizzy eyes. */
+export function moleInner(item: ItemType, daze = true): string {
+  const kitted = item.isRef || item.kit !== 'none';
+  let behind = '';
+  let front = '';
+  if (!item.isRef && item.kit !== 'none') {
+    const kit = item.kit;
+    switch (item.role) {
+      case 'player':
+        front += footballInner(50, 15, 12.5);
+        break;
+      case 'keeper':
+        behind += arm(28, 76, 16, 50, false) + arm(72, 76, 84, 50, false);
+        front += glove(14, 40, 0.92, false) + glove(86, 40, 0.92, true);
+        break;
+      case 'fan':
+        behind += arm(26, 74, 15, 13) + arm(74, 74, 85, 13);
+        front += scarf(kit, 12, 1, 76, 14) + `<circle cx="15" cy="12" r="5.2" fill="#f2a6b3" stroke="${INK}" stroke-width="2"/><circle cx="85" cy="12" r="5.2" fill="#f2a6b3" stroke="${INK}" stroke-width="2"/>`;
+        break;
+      default:
+        break;
+    }
   }
-  return `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="4 10 92 92" preserveAspectRatio="xMidYMax slice">${critterInner(item, false)}</svg>`;
+  const body = `<ellipse cx="${BODY.cx}" cy="${BODY.cy}" rx="${BODY.rx}" ry="${BODY.ry}" fill="${PALETTE.mole}"/>`;
+  const belly = kitted ? '' : `<ellipse cx="50" cy="90" rx="19" ry="17" fill="${PALETTE.belly}"/>`;
+  const clothes = item.isRef ? shirt('ref') + whistle() : item.kit !== 'none' ? shirt(item.kit) : '';
+  const outline = `<ellipse cx="${BODY.cx}" cy="${BODY.cy}" rx="${BODY.rx}" ry="${BODY.ry}" fill="none" stroke="${INK}" stroke-width="3"/>`;
+  const restPaws = kitted && item.role !== 'none' ? '' : `<ellipse cx="31" cy="${kitted ? 88 : 85}" rx="7" ry="5" fill="#f2a6b3" stroke="${INK}" stroke-width="2"/><ellipse cx="69" cy="${kitted ? 88 : 85}" rx="7" ry="5" fill="#f2a6b3" stroke="${INK}" stroke-width="2"/>`;
+  const face = `
+    ${blush(35, 56)}${blush(65, 56)}
+    <g stroke="${INK}" stroke-width="1.4" stroke-linecap="round">
+      <line x1="38" y1="56" x2="24" y2="53"/><line x1="38" y1="59" x2="24" y2="61"/>
+      <line x1="62" y1="56" x2="76" y2="53"/><line x1="62" y1="59" x2="76" y2="61"/>
+    </g>
+    <ellipse cx="50" cy="55" rx="7.5" ry="5.6" fill="#f48fa6" stroke="${INK}" stroke-width="2"/>
+    <path d="M45,63 Q50,67 55,63" fill="none" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>
+    <g class="eyes">${eyeDots()}</g>
+    ${daze ? `<g class="eyes-daze">${dazedEyes()}</g>` : ''}`;
+  return `${behind}${body}${belly}${clothes}${outline}${restPaws}${face}${front}`;
+}
+
+export function moleSvg(item: ItemType): string {
+  return `<svg class="critter-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${moleInner(item)}</svg>`;
+}
+
+// ---------------------------------------------------------------- icons
+
+const SHIRT_PATH = 'M10,5 L16,2 Q20,6 24,2 L30,5 L38,13 L32,18 L31,37 L9,37 L8,18 L2,13 Z';
+
+/** A football shirt icon in a 40 × 40 box at (x, y), scaled to `size`. */
+export function shirtIcon(kit: Kit | 'ref', x: number, y: number, size: number): string {
+  const id = uid('si');
+  const fill =
+    kit === 'ref'
+      ? `<rect width="40" height="40" fill="${PALETTE.ref}"/>`
+      : kitFill(kit, 40, 40, 5.5, true);
+  const extra =
+    kit === 'ref'
+      ? `<path d="M14,8 Q20,18 26,8" fill="none" stroke="${WHITE}" stroke-width="1.6"/><circle cx="22" cy="20" r="3.4" fill="#d8dde6" stroke="${WHITE}" stroke-width="1"/>`
+      : '';
+  return `<g transform="translate(${x} ${y}) scale(${size / 40})">
+    <clipPath id="${id}"><path d="${SHIRT_PATH}"/></clipPath>
+    <g clip-path="url(#${id})">${fill}</g>${extra}
+    <path d="${SHIRT_PATH}" fill="none" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/>
+  </g>`;
+}
+
+/** A role icon (ball, glove or scarf) in a 40 × 40 box at (x, y). */
+export function roleIcon(role: Role, kit: Kit, x: number, y: number, size: number): string {
+  const s = size / 40;
+  let inner = '';
+  switch (role) {
+    case 'player':
+      inner = footballInner(20, 20, 16);
+      break;
+    case 'keeper':
+      inner = glove(20, 22, 1.25, false);
+      break;
+    case 'fan':
+      inner = `<g transform="rotate(-18 20 20)">${scarf(kit, 6, 13, 28, 13)}</g>`;
+      break;
+  }
+  return `<g transform="translate(${x} ${y}) scale(${s})">${inner}</g>`;
 }
 
 // ---------------------------------------------------------------- queue tiles
 
-/** An LED tile for the NOW panel and the next targets: colour, band pattern, icon. */
+/**
+ * An LED tile for the NOW panel and the next targets: the kit pattern edge to edge, with the
+ * shirt (kit stages) or the role (role stages) on a white badge.
+ */
 export function tileSvg(item: ItemType, mode: Mode): string {
-  if (item.color === 'none') return '';
-  const c = item.color;
+  if (item.kit === 'none') return '';
+  const k = item.kit;
+  const icon =
+    mode === 'role' && item.role !== 'none' ? roleIcon(item.role, k, 13, 13, 34) : shirtIcon(k, 13, 13, 34);
   return `<svg viewBox="0 0 60 60" aria-hidden="true">
-    <rect x="1" y="1" width="58" height="58" rx="7" fill="${PALETTE.hats[c]}" stroke="${INK}" stroke-width="2"/>
-    <svg x="3" y="3" width="54" height="10" overflow="hidden">${bandPattern(c, 0, 0, 54, 10, fgFor(c))}</svg>
-    <svg x="3" y="47" width="54" height="10" overflow="hidden">${bandPattern(c, 0, 0, 54, 10, fgFor(c))}</svg>
-    <rect x="9" y="12" width="42" height="36" rx="6" fill="${WHITE}" stroke="${INK}" stroke-width="1.6"/>
-    ${iconInner(item, mode, 12, 12, 36)}
-    <rect x="9" y="12" width="42" height="36" rx="6" fill="none" stroke="${INK}" stroke-width="1.6"/>
+    ${kitBox(k, 1, 1, 58, 58, 6)}
+    <rect x="10" y="10" width="40" height="40" rx="8" fill="${WHITE}" stroke="${INK}" stroke-width="1.8"/>
+    ${icon}
+    <rect x="1" y="1" width="58" height="58" rx="7" fill="none" stroke="${INK}" stroke-width="2"/>
   </svg>`;
 }
 
 // ---------------------------------------------------------------- scoreboard bits
 
 export function footballSvg(): string {
-  const pent = (cx: number, cy: number, r: number, rot: number) => {
-    let d = '';
-    for (let i = 0; i < 5; i++) {
-      const a = ((rot + i * 72) * Math.PI) / 180;
-      d += `${i ? 'L' : 'M'}${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`;
-    }
-    return `<path d="${d}Z" fill="${INK}"/>`;
-  };
-  return `<svg viewBox="0 0 24 24" aria-hidden="true">
-    <circle cx="12" cy="12" r="10.5" fill="${WHITE}" stroke="${INK}" stroke-width="1.6"/>
-    ${pent(12, 12, 4, -90)}
-    <path d="M12,8 L12,3.5 M15.8,10.8 L20,9.3 M14.4,15.2 L17,19 M9.6,15.2 L7,19 M8.2,10.8 L4,9.3" stroke="${INK}" stroke-width="1.2"/>
-    <clipPath id="fb"><circle cx="12" cy="12" r="10"/></clipPath>
-    <g clip-path="url(#fb)">${pent(12, 0.6, 3.2, 90)}${pent(22.8, 8.6, 3.2, 162)}${pent(18.8, 21.4, 3.2, 234)}${pent(5.2, 21.4, 3.2, 306)}${pent(1.2, 8.6, 3.2, 18)}</g>
-  </svg>`;
+  return `<svg viewBox="0 0 24 24" aria-hidden="true">${footballInner(12, 12, 10.5)}</svg>`;
+}
+
+export function cardSvg(card: 'yellow' | 'red'): string {
+  const fill = card === 'yellow' ? '#ffd21f' : '#e02a2a';
+  return `<svg viewBox="0 0 16 22" aria-hidden="true"><rect x="1" y="1" width="14" height="20" rx="2" fill="${fill}" stroke="${INK}" stroke-width="1.6" transform="rotate(6 8 11)"/></svg>`;
 }
 
 export function speakerSvg(): string {
@@ -241,6 +316,14 @@ export function speakerSvg(): string {
     <path d="M4,9 H8 L13,5 V19 L8,15 H4Z" fill="currentColor"/>
     <path class="waves" d="M16,9 Q18,12 16,15 M18.5,6.5 Q22.5,12 18.5,17.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     <path class="cross" d="M16,9 L22,15 M22,9 L16,15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>`;
+}
+
+/** The patterns-only toggle: a circle, half filled. */
+export function contrastSvg(): string {
+  return `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M12,3.5 A8.5,8.5 0 0 1 12,20.5 Z" fill="currentColor"/>
   </svg>`;
 }
 
@@ -264,88 +347,90 @@ function ledDots(w: number, h: number): string {
     <rect width="${w}" height="${h}" fill="url(#led)"/>`;
 }
 
+export interface HoardingOpts {
+  vertical: boolean;
+  /** Plain stages: the white text, e.g. "HIT ANY MOLE". */
+  text: string;
+  /** Stage 2: "NOT THE REF" with a referee icon. */
+  refText?: string;
+  /** Show the role badge (role stages). The top hoarding leaves it to its NOW panels. */
+  badge?: boolean;
+}
+
 /**
- * One repeat of an LED pitch-side hoarding, as a CSS background. It shows the target's colour and
- * band pattern, plus the mascot in animal stages. Plain stages show "WHACK ANY MOLE" in white.
+ * One repeat of an LED pitch-side hoarding, as a CSS background. Kit stages show the kit's colour
+ * and shirt pattern (plus the role in role stages); plain stages show white text.
  */
-export function hoardingUri(item: ItemType, mode: Mode, vertical: boolean, text: string, icon = true): string {
-  const plain = mode === 'plain' || item.color === 'none';
-  const L = plain ? 280 : 180;
+export function hoardingUri(item: ItemType, mode: Mode, o: HoardingOpts): string {
+  const plain = mode === 'plain' || item.kit === 'none';
   const T = 40;
-  const w = vertical ? T : L;
-  const h = vertical ? L : T;
+  let L: number;
   let inner: string;
   if (plain) {
-    // A separator dot at each end keeps the repeats apart.
-    const label = `<text x="${L / 2}" y="${T / 2}" dy=".36em" text-anchor="middle" textLength="${L - 56}" lengthAdjust="spacingAndGlyphs" font-family="Anton, Impact, 'Arial Narrow', sans-serif" font-weight="700" font-size="20" fill="${WHITE}">${text}</text>
-      <circle cx="10" cy="${T / 2}" r="3" fill="${WHITE}" opacity=".6"/><circle cx="${L - 10}" cy="${T / 2}" r="3" fill="${WHITE}" opacity=".6"/>`;
+    const label = (text: string, x: number, len: number) =>
+      `<text x="${x + len / 2}" y="${T / 2}" dy=".36em" text-anchor="middle" textLength="${len}" lengthAdjust="spacingAndGlyphs" font-family="Anton, Impact, 'Arial Narrow', sans-serif" font-weight="700" font-size="20" fill="${WHITE}">${text}</text>`;
+    const dot = (x: number) => `<circle cx="${x}" cy="${T / 2}" r="3" fill="${WHITE}" opacity=".6"/>`;
+    let row: string;
+    if (o.refText) {
+      L = 520;
+      row = `${dot(10)}${label(o.text, 28, 210)}${dot(256)}<rect x="268" y="3" width="34" height="34" rx="7" fill="${WHITE}" stroke="${INK}" stroke-width="1.6"/>${shirtIcon('ref', 271, 6, 28)}${label(o.refText, 310, 186)}${dot(L - 10)}`;
+    } else {
+      L = 280;
+      row = `${dot(10)}${label(o.text, 28, L - 56)}${dot(L - 10)}`;
+    }
+    const w = o.vertical ? T : L;
+    const h = o.vertical ? L : T;
     inner = `<rect width="${w}" height="${h}" fill="#141a26"/>
-      ${vertical ? `<g transform="translate(${T} 0) rotate(90)">${label}</g>` : label}`;
-  } else {
-    const c = item.color as HatColor;
-    const fg = fgFor(c);
-    // The band pattern runs the full length of the board, like the band on the hat.
-    const band = vertical
-      ? `<g transform="translate(${T} 0) rotate(90)">${bandPattern(c, 0, 6, L, T - 12, fg)}</g>`
-      : bandPattern(c, 0, 6, L, T - 12, fg);
-    const badge =
-      mode === 'animal' && icon
-        ? `<rect x="${w / 2 - 17}" y="${h / 2 - 17}" width="34" height="34" rx="7" fill="${WHITE}" stroke="${INK}" stroke-width="1.6"/>
-           ${iconInner(item, mode, w / 2 - 15, h / 2 - 15, 30)}`
-        : '';
-    inner = `<rect width="${w}" height="${h}" fill="${PALETTE.hats[c]}"/>
-      <g opacity=".75">${band}</g>${badge}`;
+      ${o.vertical ? `<g transform="translate(${T} 0) rotate(90)">${row}</g>` : row}`;
+    return uri(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${inner}${ledDots(w, h)}</svg>`);
   }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-    ${inner}${ledDots(w, h)}</svg>`;
-  return uri(svg);
+  const k = item.kit as Kit;
+  L = 176;
+  const w = o.vertical ? T : L;
+  const h = o.vertical ? L : T;
+  // The pattern keeps its screen orientation on every side (stripes stay vertical, hoops
+  // horizontal), so red and blue never swap looks on the side boards.
+  const fill = kitFill(k, w, h, T / 5);
+  let badge = '';
+  if (mode === 'role' && item.role !== 'none' && o.badge !== false) {
+    const bs = 32;
+    const bx = w / 2 - bs / 2;
+    const by = h / 2 - bs / 2;
+    badge = `<rect x="${bx}" y="${by}" width="${bs}" height="${bs}" rx="7" fill="${WHITE}" stroke="${INK}" stroke-width="1.8"/>
+      ${roleIcon(item.role, k, bx + 3, by + 3, bs - 6)}`;
+  }
+  return uri(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${fill}${badge}${ledDots(w, h)}</svg>`);
 }
 
 // ---------------------------------------------------------------- crowd card display
 
-/** Tiny version of the band pattern for one crowd card (10 × 9 box at x, y). */
-function cardMark(color: HatColor, x: number, y: number, fg: string): string {
-  switch (color) {
-    case 'red':
-      return `<rect x="${x + 1}" y="${y + 2.2}" width="8" height="1.5" fill="${fg}"/><rect x="${x + 1}" y="${y + 5.6}" width="8" height="1.5" fill="${fg}"/>`;
-    case 'blue':
-      return `<circle cx="${x + 3}" cy="${y + 3}" r="1.2" fill="${fg}"/><circle cx="${x + 7}" cy="${y + 3}" r="1.2" fill="${fg}"/><circle cx="${x + 3}" cy="${y + 6.4}" r="1.2" fill="${fg}"/><circle cx="${x + 7}" cy="${y + 6.4}" r="1.2" fill="${fg}"/>`;
-    case 'yellow':
-      return `<path d="${starPath(x + 5, y + 4.8, 3.4, 1.4)}" fill="${fg}"/>`;
-    case 'purple':
-      return `<polyline points="${x + 1},${y + 6} ${x + 3},${y + 3} ${x + 5},${y + 6} ${x + 7},${y + 3} ${x + 9},${y + 6}" fill="none" stroke="${fg}" stroke-width="1.2" stroke-linejoin="round"/>`;
-  }
-}
-
 /**
- * One repeat of the crowd's card display: fans holding up scarves in the target colour with its
- * band pattern. `null` gives a mix of all four colours (plain stages).
+ * One repeat of the crowd's card display: supporters holding up cards in the target kit with its
+ * pattern. `null` gives a mix of all four kits (plain stages).
  */
-export function crowdUri(color: HatColor | null): string {
+export function crowdUri(kit: Kit | null): string {
   const cells = 8;
   const cell = 12;
   const size = cells * cell;
-  let seed = color ? color.length * 31 + 7 : 3;
+  let seed = kit ? kit.length * 31 + 7 : 3;
   const rnd = () => {
     seed = (seed * 16807) % 2147483647;
     return seed / 2147483647;
   };
-  const all: HatColor[] = ['red', 'blue', 'yellow', 'purple'];
+  const all: Kit[] = ['red', 'blue', 'yellow', 'purple'];
   let out = `<rect width="${size}" height="${size}" fill="${PALETTE.stand}"/>`;
   for (let r = 0; r < cells; r++) {
     for (let c = 0; c < cells; c++) {
       const x = c * cell + 1 + (rnd() - 0.5) * 0.8;
       const y = r * cell + 1.5 + (rnd() - 0.5) * 0.8;
-      // A few empty seats and fans without a scarf keep it looking like people.
-      const roll = rnd();
-      if (roll < 0.08) {
-        out += `<circle cx="${x + 5}" cy="${y + 5}" r="3.4" fill="#2a2f3f"/>`;
+      // A few empty seats keep it looking like people.
+      if (rnd() < 0.08) {
+        out += `<circle cx="${(x + 5).toFixed(2)}" cy="${(y + 5).toFixed(2)}" r="3.4" fill="#2a2f3f"/>`;
         continue;
       }
-      const col = color ?? all[Math.floor(rnd() * 4)];
-      const shade = 0.78 + rnd() * 0.22;
-      out += `<rect x="${x}" y="${y}" width="10" height="9" rx="1.6" fill="${PALETTE.hats[col]}" opacity="${shade.toFixed(2)}"/>`;
-      out += `<g opacity="${(shade * 0.85).toFixed(2)}">${cardMark(col, x, y, fgFor(col))}</g>`;
+      const col = kit ?? all[Math.floor(rnd() * 4)];
+      const shade = 0.8 + rnd() * 0.2;
+      out += `<g opacity="${shade.toFixed(2)}">${kitBox(col, +x.toFixed(2), +y.toFixed(2), 10, 9, 2, true)}</g>`;
     }
   }
   return uri(`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${out}</svg>`);

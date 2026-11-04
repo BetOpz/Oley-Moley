@@ -1,8 +1,8 @@
 // The stadium round the pitch: four stands with a card-display crowd, LED pitch-side
-// hoardings showing the target (and the queue on the top one), the target wipe, the
-// centre-circle rule label and the stand cheers.
-import type { HatColor, ItemType, Mode } from '../config';
-import type { OleLevel } from '../game';
+// hoardings showing the target (and the queue on the top one), the scroll and sweep when the
+// target changes, the centre-circle rule label and the stand cheers.
+import type { ItemType, Kit } from '../config';
+import type { OleLevel, Stage } from '../game';
 import { STR } from '../strings';
 import { crowdUri, hoardingUri, tileSvg } from './art';
 import type { Side } from './art';
@@ -10,13 +10,24 @@ import { el } from './board';
 import { pulseClass, reducedMotion } from './fx';
 
 const SIDES: Side[] = ['top', 'right', 'bottom', 'left'];
+/** Stands join the cheer clockwise from the top (the scoreboard's stand). */
+const CHEER_ORDER: Side[] = ['top', 'right', 'bottom', 'left'];
 
-/** The hoarding wipe starts at the NOW panel (top left) and runs both ways round the pitch. */
-const WIPE_DELAY: Record<Side, number> = { top: 0, left: 0, right: 75, bottom: 75 };
-const WIPE_MS = 75;
-/** The crowd ripples outwards from the pitch just after the hoardings. Done by ~280 ms. */
-const CROWD_DELAY_MS = 110;
-const CROWD_MS = 170;
+/**
+ * Timeline when the target changes (all done by 400 ms):
+ * 0–200 ms the top hoarding scrolls sideways (next target slides into NOW),
+ * 200–350 ms the new kit sweeps out round the other three hoardings,
+ * 290–390 ms the crowd ripples.
+ */
+const SCROLL_MS = 200;
+const SWEEP: Record<Side, [delay: number, ms: number]> = {
+  top: [0, SCROLL_MS],
+  left: [200, 80],
+  right: [200, 80],
+  bottom: [270, 80],
+};
+const CROWD_DELAY_MS = 290;
+const CROWD_MS = 100;
 const RULE_MS = 1500;
 
 export class Stadium {
@@ -92,20 +103,21 @@ export class Stadium {
 
   /**
    * Show the current target on all four hoardings and in the crowd, and the next three on the
-   * top hoarding. When the target changed and `announce` is set, the hoardings wipe, the crowd
-   * ripples and the rule label flashes.
+   * top hoarding. With `animate`, the top hoarding scrolls, the kit sweeps round the others and
+   * the crowd ripples; with `announce`, the rule label flashes too.
    */
-  setTarget(mode: Mode, queue: ItemType[], announce: boolean): void {
-    const now: ItemType = queue[0] ?? { animal: 'mole', color: 'none' };
-    const plain = mode === 'plain' || now.color === 'none';
-    const key = `${mode}:${now.animal}:${now.color}`;
+  setTarget(stage: Stage, queue: ItemType[], animate: boolean, announce = animate): void {
+    const mode = stage.mode;
+    const now: ItemType = queue[0] ?? { kit: 'none', role: 'none', isRef: false };
+    const plain = mode === 'plain' || now.kit === 'none';
+    const key = plain ? `plain:${stage.referee}` : `${mode}:${now.kit}:${now.role}`;
     const changed = key !== this.key;
     this.key = key;
-    const motion = announce && !reducedMotion();
+    const motion = animate && !reducedMotion();
 
     this.queueEl.classList.toggle('hidden', plain);
     if (!plain) {
-      for (const t of this.nowTiles) t.innerHTML = tileSvg(now, mode);
+      for (const t of this.nowTiles) this.swapTile(t, tileSvg(now, mode), motion && changed);
       this.nextEl.innerHTML = '';
       queue.slice(1, 4).forEach((item, i, arr) => {
         const t = el('div', 'tile next-tile');
@@ -114,51 +126,93 @@ export class Stadium {
         this.nextEl.append(t);
       });
     }
-    if (!changed) return;
+    if (!changed) {
+      if (announce) this.flashRule(stage, now);
+      return;
+    }
 
-    document.documentElement.dataset.tgt = plain ? 'none' : now.color;
+    document.documentElement.dataset.tgt = plain ? 'none' : now.kit;
     for (const side of SIDES) {
       const vertical = side === 'left' || side === 'right';
+      const [delay, ms] = SWEEP[side];
       this.swapLayer(
         this.hoardings[side],
         'h-layer',
-        // The top hoarding already shows the target on its NOW panels, so no extra badges there.
-        hoardingUri(now, mode, vertical, STR.whackAny, side !== 'top'),
-        motion ? WIPE_DELAY[side] : -1,
-        WIPE_MS,
+        hoardingUri(now, mode, {
+          vertical,
+          text: STR.hitAny,
+          refText: stage.referee ? STR.notTheRef : undefined,
+          // The top hoarding already shows the role on its NOW panels.
+          badge: side !== 'top',
+        }),
+        motion ? delay : -1,
+        ms,
+        side === 'top' ? 'scroll' : 'wipe',
       );
       this.swapLayer(
         this.crowds[side],
         'crowd-layer',
-        crowdUri(plain ? null : (now.color as HatColor)),
+        crowdUri(plain ? null : (now.kit as Kit)),
         motion ? CROWD_DELAY_MS : -1,
         CROWD_MS,
+        'wipe',
       );
     }
-    if (announce) this.flashRule(mode, now);
+    if (announce) this.flashRule(stage, now);
   }
 
-  /** Add a new background layer over the old ones; wipe it in if delay ≥ 0. */
-  private swapLayer(host: HTMLElement, cls: string, bg: string, delay: number, ms: number): void {
+  /** The NOW tile: the old one slides out to the left as the new one slides in. */
+  private swapTile(tile: HTMLElement, svg: string, motion: boolean): void {
+    if (!motion) {
+      tile.innerHTML = `<div class="tile-face">${svg}</div>`;
+      return;
+    }
+    tile.querySelectorAll('.tile-face.out').forEach((n) => n.remove());
+    const old = tile.querySelector('.tile-face');
+    old?.classList.add('out');
+    const face = el('div', 'tile-face in');
+    face.innerHTML = svg;
+    tile.append(face);
+    window.setTimeout(() => {
+      old?.remove();
+      face.classList.remove('in');
+    }, SCROLL_MS + 20);
+  }
+
+  /** Add a new background layer over the old ones; animate it in if delay ≥ 0. */
+  private swapLayer(host: HTMLElement, cls: string, bg: string, delay: number, ms: number, anim: string): void {
     const layer = el('div', cls);
     layer.style.backgroundImage = bg;
     if (delay >= 0) {
-      layer.classList.add('wipe');
+      layer.classList.add(anim);
       layer.style.animationDelay = `${delay}ms`;
       layer.style.animationDuration = `${ms}ms`;
     }
     const old = Array.from(host.querySelectorAll(`:scope > .${cls}`));
-    host.append(layer); // CSS keeps the queue above the layers
+    // Old layers that scroll out with the new one.
+    if (anim === 'scroll' && delay >= 0) {
+      old.forEach((o) => {
+        const e = o as HTMLElement;
+        e.classList.remove('scroll', 'wipe');
+        e.classList.add('scroll-out');
+        e.style.animationDuration = `${ms}ms`;
+        e.style.animationDelay = `${delay}ms`;
+      });
+    }
+    host.querySelector(':scope > .h-queue') ? host.insertBefore(layer, host.querySelector(':scope > .h-queue')) : host.append(layer);
     window.setTimeout(() => old.forEach((o) => o.remove()), delay >= 0 ? delay + ms + 30 : 0);
   }
 
   /** The rule in the centre circle for about 1.5 s. It never takes taps. */
-  flashRule(mode: Mode, target: ItemType): void {
-    let main: string = STR.ruleAny;
+  flashRule(stage: Stage, target: ItemType): void {
+    let main: string = stage.referee ? STR.ruleAnyRef : STR.ruleAny;
     let hint = '';
-    if (mode !== 'plain' && target.color !== 'none') {
-      main = mode === 'hat' ? STR.ruleHat(target.color) : STR.ruleAnimal(target.animal, target.color);
-      hint = STR.patternHint(target.color);
+    if (stage.mode !== 'plain' && target.kit !== 'none') {
+      main =
+        stage.mode === 'role' && target.role !== 'none'
+          ? STR.ruleRole(target.kit, target.role)
+          : STR.ruleKit(target.kit);
+      hint = STR.patternHint(target.kit);
     }
     this.rule.innerHTML = '';
     const m = el('span', 'rule-main');
@@ -177,12 +231,24 @@ export class Stadium {
   }
 
   /**
-   * Olé meter cheers: the stand by the scoreboard (top) first, then the bottom stand, then all
-   * four with scarves waving at stage clear.
+   * Olé meter cheers: one more stand joins in at each quarter, clockwise from the top stand, so all
+   * four are up at stage clear. Stands that have cheered stay on their feet until the next stage.
    */
   cheer(level: OleLevel): void {
-    if (level === 1) pulseClass(this.stands.top, 'cheer', 1100);
-    else if (level === 2) pulseClass(this.stands.bottom, 'cheer', 1100);
-    else for (const side of SIDES) pulseClass(this.stands[side], 'cheer-all', 2000);
+    if (level >= 4) {
+      for (const side of SIDES) {
+        this.stands[side].classList.add('standing');
+        pulseClass(this.stands[side], 'cheer-all', 2400);
+      }
+      return;
+    }
+    const side = CHEER_ORDER[level - 1];
+    this.stands[side].classList.add('standing');
+    pulseClass(this.stands[side], 'cheer', 1100);
+  }
+
+  /** Everyone sits back down (new stage). */
+  sitDown(): void {
+    for (const side of SIDES) this.stands[side].classList.remove('standing', 'cheer', 'cheer-all');
   }
 }

@@ -28,7 +28,7 @@ describe('strings.ts', () => {
     for (const s of allStrings()) expect(s).not.toMatch(/[¡¿ñÑ]/);
   });
 
-  it('uses "Olé" only in the title and the three cheers', () => {
+  it('uses "Olé" only in the title and the four cheers', () => {
     const allowed = new Set<string>([STR.gameTitle, ...STR.cheers]);
     for (const s of allStrings()) {
       if (/olé/i.test(s)) expect(allowed.has(s), s).toBe(true);
@@ -42,8 +42,13 @@ describe('strings.ts', () => {
     expect(lines.some((l) => l.includes('cheers'))).toBe(true);
   });
 
-  it('has the three cheers in order', () => {
-    expect([...STR.cheers]).toEqual(['Olé!', 'Olé, olé!', 'Olé, olé, olé!']);
+  it('has the four cheers in order', () => {
+    expect([...STR.cheers]).toEqual(['Olé!', 'Olé, olé!', 'Olé, olé, olé!', 'Olé, olé, olé, olé!']);
+  });
+
+  it('names no real leagues', () => {
+    const lower = source.toLowerCase();
+    for (const w of ['premier league', 'championship', 'la liga', 'serie a']) expect(lower.includes(w), w).toBe(false);
   });
 
   it('contains none of the Spanish words an earlier draft used', () => {

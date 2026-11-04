@@ -159,10 +159,11 @@ button {
   }
 
   .stadium .sb-cells {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr 1fr 1fr;
     row-gap: 10px;
   }
 
+  .stadium .sb-score,
   .stadium .sb-lives {
     grid-column: 1 / -1;
   }
@@ -415,7 +416,7 @@ button {
 
 .sb-cells {
   display: grid;
-  grid-template-columns: 1.4fr 0.7fr 1.3fr;
+  grid-template-columns: 1.5fr 0.65fr 0.55fr 1.35fr 0.55fr;
   gap: 8px;
   align-items: end;
 }
@@ -485,7 +486,7 @@ button {
 /* The Olé meter: stage progress in three sections with dividers. */
 .meter {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 4px;
 }
 
@@ -1071,8 +1072,23 @@ button {
 }
 
 .pop-cheer3 {
-  font-size: calc(var(--pitch) * 0.13);
+  font-size: calc(var(--pitch) * 0.12);
+  color: #ffe08a;
+}
+
+.pop-cheer4 {
+  font-size: calc(var(--pitch) * 0.105);
   color: var(--amber);
+}
+
+.pop-yellow {
+  font-size: calc(var(--pitch) * 0.08);
+  color: #ffd21f;
+}
+
+.pop-red {
+  font-size: calc(var(--pitch) * 0.09);
+  color: #ff5a4f;
 }
 
 .pop-oops {
@@ -1412,6 +1428,214 @@ button {
   filter: brightness(0.92);
 }
 
+/* ------------------------------------------------------------ cards, scroll, cheers */
+
+.sb-cards .sb-value {
+  align-items: center;
+  gap: 3px;
+}
+
+.sb-card {
+  width: 14px;
+  height: 19px;
+  display: block;
+  opacity: 0.15;
+  transition: opacity 0.2s;
+}
+
+.sb-card svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.sb-card.on {
+  opacity: 1;
+}
+
+.sb-card.flash {
+  animation: card-flash 0.35s ease-in-out 2;
+}
+
+.sb-card.red {
+  display: none;
+}
+
+.sb-card.red.flash-red {
+  display: block;
+  opacity: 1;
+  animation: card-flash 0.35s ease-in-out 4;
+}
+
+@keyframes card-flash {
+  50% {
+    transform: scale(1.5) rotate(-8deg);
+    filter: brightness(1.4);
+  }
+}
+
+/* A card held up over the referee. */
+.ref-card {
+  position: absolute;
+  width: calc(var(--pitch) * 0.07);
+  min-width: 22px;
+  transform: translate(-50%, -100%);
+  animation: ref-card 0.9s ease-out forwards;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.4));
+}
+
+.ref-card svg {
+  width: 100%;
+  display: block;
+}
+
+@keyframes ref-card {
+  0% {
+    transform: translate(-50%, -60%) scale(0.3) rotate(-20deg);
+    opacity: 0;
+  }
+  20% {
+    transform: translate(-50%, -110%) scale(1.15) rotate(6deg);
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -125%) scale(1);
+    opacity: 0;
+  }
+}
+
+/* The top hoarding scrolls sideways like a real LED board. */
+.hoarding-top .h-layer.scroll {
+  animation-name: scroll-in;
+}
+
+.hoarding-top .h-layer.scroll-out {
+  animation-name: scroll-out;
+  animation-fill-mode: both;
+  animation-timing-function: ease-in-out;
+}
+
+.hoarding-top .h-layer.scroll {
+  animation-timing-function: ease-in-out;
+}
+
+@keyframes scroll-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes scroll-out {
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+.now-tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.tile-face {
+  position: absolute;
+  inset: 0;
+}
+
+.tile-face svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.tile-face.in {
+  animation: scroll-in 200ms ease-in-out both;
+}
+
+.tile-face.out {
+  animation: scroll-out 200ms ease-in-out both;
+}
+
+/* Stands that have cheered stay on their feet until the next stage. */
+.stand.standing .crowd {
+  filter: saturate(1.05) brightness(1.08);
+}
+
+/* ------------------------------------------------------------ division choice + promotion */
+
+.ticket-choose {
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #5b6a93;
+}
+
+.div-pick {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  margin: 4px 0 2px;
+}
+
+.div-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3px 4px;
+  border: 2px solid #c9d0e2;
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--dusk);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.div-btn[aria-checked='true'] {
+  border-color: var(--ink);
+  background: var(--amber);
+  color: var(--ink);
+}
+
+.div-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.div-btn:focus-visible {
+  outline: 3px dashed var(--amber);
+  outline-offset: 2px;
+}
+
+.div-name {
+  font-family: var(--display);
+  font-size: clamp(11px, calc(var(--pitch) * 0.032), 15px);
+  line-height: 1.1;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.div-grid {
+  font-size: 9.5px;
+  font-weight: 900;
+}
+
+.fulltime .div-pick {
+  margin-top: 10px;
+}
+
+.promo-kicker {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--amber);
+  color: var(--ink);
+}
+
 /* ------------------------------------------------------------ accessibility modes */
 
 .patterns-only .stadium {
@@ -1424,6 +1648,10 @@ button {
   .stand .crowd-layer,
   .tile.slide,
   .tile.slide-new,
+  .tile-face,
+  .h-layer,
+  .ref-card,
+  .sb-card,
   .hole.up.hit .daze,
   .card,
   .ticket {
