@@ -64,7 +64,7 @@ button {
   --side: clamp(10px, 4cqw, 60px);
   --top: 108px;
   --bottom: clamp(18px, 4cqh, 40px);
-  --pitch: min(calc(100cqw - 2 * var(--side)), calc(100cqh - var(--top) - var(--bottom)), 600px);
+  --pitch: min(calc(100cqw - 2 * var(--side)), calc(100cqh - var(--top) - var(--bottom)), 760px);
   /* Hoarding thickness: the top one is thicker because it carries the queue. */
   --bt: clamp(14px, calc(var(--pitch) * 0.045), 26px);
   --btt: clamp(30px, calc(var(--pitch) * 0.085), 50px);
@@ -82,6 +82,103 @@ button {
   .stadium {
     --side: 6px;
     --card: 66px;
+  }
+}
+
+/*
+ * Wide, short screens (laptops, landscape phones, small embedded panels): the top stand
+ * becomes a full-height stand on the left that carries the scoreboard, so the pitch can use
+ * almost the whole height. That stand is still the one nearest the scoreboard, so it cheers
+ * first. The left stand becomes a thin strip along the top.
+ */
+@container (min-aspect-ratio: 5/4) {
+  .stadium {
+    --sb: clamp(170px, 24cqw, 250px);
+    --top: clamp(8px, 2.5cqh, 28px);
+    --bottom: clamp(8px, 2.5cqh, 28px);
+    --pitch: min(
+      calc(100cqw - var(--sb) - var(--side)),
+      calc(100cqh - var(--top) - var(--bottom)),
+      760px
+    );
+    grid-template-columns: minmax(var(--sb), 1fr) var(--pitch) minmax(var(--side), 1fr);
+  }
+
+  .stadium .stand-top {
+    grid-column: 1;
+    grid-row: 1 / -1;
+  }
+
+  .stadium .stand-left {
+    grid-column: 2 / -1;
+    grid-row: 1;
+  }
+
+  .stadium .stand-bottom {
+    grid-column: 2 / -1;
+  }
+
+  .stadium .stand-top .crowd-layer {
+    background-position: right center;
+  }
+
+  .stadium .stand-top .crowd-layer.wipe {
+    animation-name: reveal-left;
+  }
+
+  .stadium .stand-left .crowd-layer {
+    background-position: center bottom;
+  }
+
+  .stadium .stand-left .crowd-layer.wipe {
+    animation-name: reveal-up;
+  }
+
+  .stadium .stand-top::after {
+    background: linear-gradient(to left, rgba(20, 27, 48, 0.1), rgba(20, 27, 48, 0.78));
+  }
+
+  .stadium .stand-left::after {
+    background: linear-gradient(to top, rgba(20, 27, 48, 0.1), rgba(20, 27, 48, 0.72));
+  }
+
+  .stadium .stand-top::before {
+    height: 30%;
+  }
+
+  /* Scoreboard stacked for the narrow column. */
+  .stadium .scoreboard {
+    width: calc(100% - 20px);
+    max-width: 230px;
+    padding: 10px 12px 12px;
+    gap: 10px;
+  }
+
+  .stadium .sb-title {
+    font-size: 22px;
+  }
+
+  .stadium .sb-cells {
+    grid-template-columns: 1fr auto;
+    row-gap: 10px;
+  }
+
+  .stadium .sb-lives {
+    grid-column: 1 / -1;
+  }
+
+  .stadium .sb-value {
+    font-size: 30px;
+    min-height: 32px;
+  }
+
+  .stadium .ball {
+    width: 22px;
+    height: 22px;
+  }
+
+  .stadium .meter-section {
+    height: 10px;
   }
 }
 
