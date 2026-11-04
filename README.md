@@ -88,9 +88,9 @@ goes backwards: mistakes cost lives, not progress.
 
 `src/audio.ts` loads recordings from `public/audio/` by name (see
 [`public/audio/README.md`](public/audio/README.md)). Any file that's missing falls back to a
-synthesised placeholder, so the game runs before real recordings exist. Without recordings
-the Olé cheers are spoken by the browser's speech voice, and there is no background crowd
-noise (a synthesised murmur just sounded like wind). Sound starts only
+synthesised placeholder, so the game runs before real recordings exist. The Olé chant
+(`ole-1`..`ole-4`) and the background crowd (`crowd-loop`) have no placeholder: they are
+silent until real recordings are added. Sound starts only
 after the first tap.
 
 ## Text

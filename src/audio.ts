@@ -2,7 +2,8 @@
 // won't decode falls back to a simple synthesised placeholder (Web Audio API), so the game
 // runs before real recordings exist. Nothing plays until the player's first tap.
 //
-// The chants are rhythmic crowd shouts with claps, not a melody.
+// The Olé chant and the background crowd have no placeholder: they stay silent until
+// recordings are added.
 
 export type SoundName =
   | 'hit-1'
@@ -58,26 +59,11 @@ export class AudioManager {
     this.master.gain.value = this.muted ? 0 : 1;
     this.master.connect(this.ctx.destination);
     this.noise = makeNoise(this.ctx);
-    // Wake the speech voice inside the tap too (iOS only allows speech started from a gesture).
-    try {
-      const speech = window.speechSynthesis;
-      speech?.getVoices();
-      if (speech) speech.speak(Object.assign(new SpeechSynthesisUtterance(' '), { volume: 0 }));
-    } catch {
-      /* no speech */
-    }
     void this.loadAll().then(() => this.startLoop());
   }
 
   setMuted(muted: boolean): void {
     this.muted = muted;
-    if (muted) {
-      try {
-        window.speechSynthesis?.cancel();
-      } catch {
-        /* ignore */
-      }
-    }
     if (this.ctx && this.master) this.master.gain.setTargetAtTime(muted ? 0 : 1, this.ctx.currentTime, 0.02);
   }
 
@@ -106,43 +92,9 @@ export class AudioManager {
       src.start();
       return { stop: () => safeStop(src) };
     }
-    const m = /^ole-([1-4])$/.exec(name);
-    if (m) return this.sayOle(Number(m[1]), ctx, out);
+    // No placeholder for the chant or the crowd loop: these wait for real recordings.
+    if (name.startsWith('ole-') || name === 'crowd-loop') return null;
     return synth(ctx, out, this.noise!, name, rate);
-  }
-
-  /**
-   * No recording of the chant: say "Olé" n times with the browser's speech voice, with
-   * crowd claps on the full four. Spelt "Oh-lay" so English voices pronounce it right.
-   */
-  private sayOle(n: number, ctx: AudioContext, out: AudioNode): { stop: () => void } {
-    const claps = n === 4 ? synth(ctx, out, this.noise!, 'claps', 1) : null;
-    const speech = window.speechSynthesis as SpeechSynthesis | undefined;
-    if (!speech || typeof SpeechSynthesisUtterance === 'undefined') return claps ?? { stop: () => {} };
-    try {
-      speech.cancel();
-      const u = new SpeechSynthesisUtterance(Array(n).fill('Oh-lay!').join(' '));
-      const voices = speech.getVoices();
-      u.voice =
-        voices.find((v) => v.lang === 'en-GB') ?? voices.find((v) => v.lang.startsWith('en')) ?? null;
-      u.lang = u.voice?.lang ?? 'en-GB';
-      u.rate = 1.15;
-      u.pitch = 1;
-      u.volume = 1;
-      speech.speak(u);
-    } catch {
-      /* speech unavailable */
-    }
-    return {
-      stop: () => {
-        claps?.stop();
-        try {
-          speech.cancel();
-        } catch {
-          /* ignore */
-        }
-      },
-    };
   }
 
   private async loadAll(): Promise<void> {
@@ -199,7 +151,7 @@ function makeNoise(ctx: AudioContext): AudioBuffer {
 
 type Stopper = { stop: () => void };
 
-function synth(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, name: SoundName | 'claps', rate: number): Stopper {
+function synth(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, name: SoundName, rate: number): Stopper {
   const nodes: AudioScheduledSourceNode[] = [];
   const t0 = ctx.currentTime + 0.005;
   const track = <T extends AudioScheduledSourceNode>(n: T): T => {
@@ -226,11 +178,6 @@ function synth(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, name: Soun
     const g = env(at, 0.003, 0, dur, peak);
     src.connect(f).connect(g).connect(out);
     src.start(at, Math.random() * 0.5, dur + 0.05);
-  };
-
-  /** A crowd clap: a handful of slightly scattered noise bursts. */
-  const clap = (at: number, peak = 0.35) => {
-    for (let i = 0; i < 6; i++) noiseBurst(at + Math.random() * 0.025, 0.07, 'bandpass', 1300 + Math.random() * 900, 0.9, peak / 3);
   };
 
   /** A crowd of voices shouting one vowel, `n` voices around f0, through a vowel formant. */
@@ -291,16 +238,6 @@ function synth(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, name: Soun
       noiseBurst(t0, 0.03, 'lowpass', 1800, 0.7, 0.25);
       break;
     }
-    case 'claps':
-      // Rhythmic crowd claps under the spoken four-olé chant.
-      for (let i = 0; i < 4; i++) {
-        clap(t0 + i * 0.62 + 0.4);
-        clap(t0 + i * 0.62 + 0.52);
-      }
-      clap(t0 + 2.75, 0.45);
-      clap(t0 + 2.9, 0.45);
-      clap(t0 + 3.05, 0.45);
-      break;
     case 'roar': {
       // A big crowd roar: a swell of broadband noise with shouting voices underneath.
       const src = track(ctx.createBufferSource());
