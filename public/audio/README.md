@@ -1,7 +1,8 @@
 # Audio files
 
 Drop real recordings here. `src/audio.ts` loads them by name; any that are missing fall back to
-a synthesised placeholder, so the game runs without them.
+a synthesised placeholder, so the game runs without them. The exceptions: `ole-1`..`ole-4`
+fall back to the browser's speech voice saying "Olé", and `crowd-loop` plays nothing at all.
 
 | File | Plays when |
 |---|---|

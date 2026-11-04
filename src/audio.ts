@@ -58,11 +58,26 @@ export class AudioManager {
     this.master.gain.value = this.muted ? 0 : 1;
     this.master.connect(this.ctx.destination);
     this.noise = makeNoise(this.ctx);
+    // Wake the speech voice inside the tap too (iOS only allows speech started from a gesture).
+    try {
+      const speech = window.speechSynthesis;
+      speech?.getVoices();
+      if (speech) speech.speak(Object.assign(new SpeechSynthesisUtterance(' '), { volume: 0 }));
+    } catch {
+      /* no speech */
+    }
     void this.loadAll().then(() => this.startLoop());
   }
 
   setMuted(muted: boolean): void {
     this.muted = muted;
+    if (muted) {
+      try {
+        window.speechSynthesis?.cancel();
+      } catch {
+        /* ignore */
+      }
+    }
     if (this.ctx && this.master) this.master.gain.setTargetAtTime(muted ? 0 : 1, this.ctx.currentTime, 0.02);
   }
 
@@ -91,7 +106,43 @@ export class AudioManager {
       src.start();
       return { stop: () => safeStop(src) };
     }
+    const m = /^ole-([1-4])$/.exec(name);
+    if (m) return this.sayOle(Number(m[1]), ctx, out);
     return synth(ctx, out, this.noise!, name, rate);
+  }
+
+  /**
+   * No recording of the chant: say "Olé" n times with the browser's speech voice, with
+   * crowd claps on the full four. Spelt "Oh-lay" so English voices pronounce it right.
+   */
+  private sayOle(n: number, ctx: AudioContext, out: AudioNode): { stop: () => void } {
+    const claps = n === 4 ? synth(ctx, out, this.noise!, 'claps', 1) : null;
+    const speech = window.speechSynthesis as SpeechSynthesis | undefined;
+    if (!speech || typeof SpeechSynthesisUtterance === 'undefined') return claps ?? { stop: () => {} };
+    try {
+      speech.cancel();
+      const u = new SpeechSynthesisUtterance(Array(n).fill('Oh-lay!').join(' '));
+      const voices = speech.getVoices();
+      u.voice =
+        voices.find((v) => v.lang === 'en-GB') ?? voices.find((v) => v.lang.startsWith('en')) ?? null;
+      u.lang = u.voice?.lang ?? 'en-GB';
+      u.rate = 1.15;
+      u.pitch = 1;
+      u.volume = 1;
+      speech.speak(u);
+    } catch {
+      /* speech unavailable */
+    }
+    return {
+      stop: () => {
+        claps?.stop();
+        try {
+          speech.cancel();
+        } catch {
+          /* ignore */
+        }
+      },
+    };
   }
 
   private async loadAll(): Promise<void> {
@@ -118,16 +169,13 @@ export class AudioManager {
     const gain = ctx.createGain();
     gain.gain.value = LOOP_GAIN;
     gain.connect(this.master);
+    // Only a real recording: a synthesised murmur just sounds like wind.
     const buf = this.buffers.get('crowd-loop');
+    if (!buf) return;
     const src = ctx.createBufferSource();
     src.loop = true;
-    if (buf) {
-      src.buffer = buf;
-      src.connect(gain);
-    } else {
-      src.buffer = makeMurmur(ctx);
-      src.connect(gain);
-    }
+    src.buffer = buf;
+    src.connect(gain);
     src.start();
   }
 }
@@ -149,30 +197,9 @@ function makeNoise(ctx: AudioContext): AudioBuffer {
   return buf;
 }
 
-/** A soft, low crowd murmur: brown noise with slow swells, 6 s, looped. */
-function makeMurmur(ctx: AudioContext): AudioBuffer {
-  const len = ctx.sampleRate * 6;
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  let last = 0;
-  for (let i = 0; i < len; i++) {
-    last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
-    const t = i / ctx.sampleRate;
-    const swell = 0.75 + 0.25 * Math.sin((t / 6) * Math.PI * 2) * Math.sin((t / 3) * Math.PI * 2 + 1);
-    d[i] = last * 3.2 * swell;
-  }
-  // Fade the seam.
-  const fade = Math.floor(ctx.sampleRate * 0.05);
-  for (let i = 0; i < fade; i++) {
-    d[i] *= i / fade;
-    d[len - 1 - i] *= i / fade;
-  }
-  return buf;
-}
-
 type Stopper = { stop: () => void };
 
-function synth(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, name: SoundName, rate: number): Stopper {
+function synth(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, name: SoundName | 'claps', rate: number): Stopper {
   const nodes: AudioScheduledSourceNode[] = [];
   const t0 = ctx.currentTime + 0.005;
   const track = <T extends AudioScheduledSourceNode>(n: T): T => {
@@ -229,12 +256,6 @@ function synth(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, name: Soun
     noiseBurst(at, dur, 'bandpass', formant, 0.8, peak * 0.4);
   };
 
-  /** "O-lé": an "o" then a higher "lé". */
-  const ole = (at: number, n: number, peak: number) => {
-    shout(at, 0.22, n, 190, 600, peak, 1.02);
-    shout(at + 0.24, 0.42, n, 215, 1700, peak, 0.97);
-  };
-
   /** A referee's pea whistle: a high tone with a fast trill. */
   const peaWhistle = (at: number, dur: number) => {
     const o = track(ctx.createOscillator());
@@ -270,26 +291,15 @@ function synth(ctx: AudioContext, out: AudioNode, noise: AudioBuffer, name: Soun
       noiseBurst(t0, 0.03, 'lowpass', 1800, 0.7, 0.25);
       break;
     }
-    // One stand, then two, then three, then the whole ground, shouting in rhythm.
-    case 'ole-1':
-      ole(t0, 6, 0.3);
-      break;
-    case 'ole-2':
-      ole(t0, 10, 0.38);
-      ole(t0 + 0.75, 10, 0.38);
-      break;
-    case 'ole-3':
-      for (let i = 0; i < 3; i++) ole(t0 + i * 0.75, 13, 0.44);
-      break;
-    case 'ole-4':
+    case 'claps':
+      // Rhythmic crowd claps under the spoken four-olé chant.
       for (let i = 0; i < 4; i++) {
-        ole(t0 + i * 0.75, 16, 0.5);
-        clap(t0 + i * 0.75 + 0.5);
-        clap(t0 + i * 0.75 + 0.62);
+        clap(t0 + i * 0.62 + 0.4);
+        clap(t0 + i * 0.62 + 0.52);
       }
+      clap(t0 + 2.75, 0.45);
+      clap(t0 + 2.9, 0.45);
       clap(t0 + 3.05, 0.45);
-      clap(t0 + 3.2, 0.45);
-      clap(t0 + 3.35, 0.45);
       break;
     case 'roar': {
       // A big crowd roar: a swell of broadband noise with shouting voices underneath.
