@@ -29,7 +29,7 @@ export const ANIMALS: Animal[] = ['mole', 'rabbit', 'frog', 'fox'];
 
 export const STAGES: StageDef[] = [
   { grid: 2, mode: 'plain', colors: 0, animals: 1, goal: 9, spawnMs: 950, upMs: 1500, maxUp: 1 },
-  { grid: 3, mode: 'plain', colors: 0, animals: 1, goal: 9, spawnMs: 780, upMs: 1250, maxUp: 2 },
+  { grid: 3, mode: 'plain', colors: 0, animals: 1, goal: 9, spawnMs: 950, upMs: 1700, maxUp: 2 },
   { grid: 3, mode: 'hat', colors: 3, animals: 1, goal: 12, spawnMs: 720, upMs: 1600, maxUp: 3 },
   { grid: 4, mode: 'hat', colors: 4, animals: 1, goal: 12, spawnMs: 620, upMs: 1450, maxUp: 4 },
   { grid: 4, mode: 'animal', colors: 3, animals: 3, goal: 12, spawnMs: 640, upMs: 1600, maxUp: 5 },
