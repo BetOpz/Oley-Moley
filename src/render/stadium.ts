@@ -1,6 +1,6 @@
 // The stadium round the pitch: four stands with a card-display crowd, LED pitch-side
 // hoardings showing the target (and the queue on the top one), the scroll and sweep when the
-// target changes, the centre-circle rule label and the stand cheers.
+// target changes, the top-hoarding rule label and the stand cheers.
 import type { ItemType, Kit } from '../config';
 import type { OleLevel, Stage } from '../game';
 import { STR } from '../strings';
@@ -28,7 +28,6 @@ const SWEEP: Record<Side, [delay: number, ms: number]> = {
 };
 const CROWD_DELAY_MS = 290;
 const CROWD_MS = 100;
-const RULE_MS = 1500;
 
 export class Stadium {
   readonly root: HTMLElement;
@@ -40,10 +39,10 @@ export class Stadium {
   readonly pitchHost: HTMLElement;
   private crowds: Record<Side, HTMLElement>;
   private queueEl: HTMLElement;
+  private spacer!: HTMLElement;
   private nowTiles: HTMLElement[];
   private nextEl: HTMLElement;
   private rule: HTMLElement;
-  private ruleTimer = 0;
   private key = '';
 
   constructor(parent: HTMLElement) {
@@ -84,6 +83,7 @@ export class Stadium {
     right.p.classList.add('now-right');
     this.nextEl = el('div', 'next-tiles');
     const spacer = el('div', 'h-spacer');
+    this.spacer = spacer;
     this.queueEl.append(left.p, this.nextEl, spacer, right.p);
     this.nowTiles = [left.tile, right.tile];
     this.hoardings.top.append(this.queueEl);
@@ -96,9 +96,9 @@ export class Stadium {
     parent.append(this.root);
   }
 
-  /** Put the rule label above the pitch (call after the board has rendered into pitchHost). */
+  /** Put the rule label in the gap on the top hoarding, clear of the pitch. */
   mountRuleLabel(): void {
-    this.pitchHost.append(this.rule);
+    this.spacer.append(this.rule);
   }
 
   /**
@@ -203,7 +203,10 @@ export class Stadium {
     window.setTimeout(() => old.forEach((o) => o.remove()), delay >= 0 ? delay + ms + 30 : 0);
   }
 
-  /** The rule in the centre circle for about 1.5 s. It never takes taps. */
+  /**
+   * The rule on the top hoarding, between the next targets and the right-hand NOW panel. It stays
+   * up and pulses when the target changes. Plain stages hide it: their hoardings already say it.
+   */
   flashRule(stage: Stage, target: ItemType): void {
     let main: string = stage.referee ? STR.ruleAnyRef : STR.ruleAny;
     let hint = '';
@@ -223,11 +226,10 @@ export class Stadium {
       h.textContent = hint;
       this.rule.append(h);
     }
-    this.rule.classList.remove('show');
-    void this.rule.offsetWidth;
     this.rule.classList.add('show');
-    window.clearTimeout(this.ruleTimer);
-    this.ruleTimer = window.setTimeout(() => this.rule.classList.remove('show'), RULE_MS);
+    this.rule.classList.remove('pulse');
+    void this.rule.offsetWidth;
+    this.rule.classList.add('pulse');
   }
 
   /**

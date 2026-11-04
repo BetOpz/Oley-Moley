@@ -59,8 +59,8 @@ sides. The player never has to look away from the pitch to know what to hit:
 - **Target change:** the top hoarding scrolls sideways like an LED board (about 200 ms), then
   the new kit sweeps round the other three (about 150 ms), then the crowd's card display
   ripples. Everything has updated within 400 ms.
-- **Rule label:** "Hit red" or "Hit the blue keeper" shows in the centre circle for about 1.5
-  seconds when the target changes. It never blocks taps.
+- **Rule label:** "Hit red" or "Hit the blue keeper" sits on the top hoarding, off the pitch,
+  and pulses when the target changes.
 - **Scoreboard:** score with the streak, division and stage, lives, cards and the Olé meter.
   On wide screens it sits in a full-height stand on the left so the pitch can be bigger.
 
